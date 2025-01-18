@@ -1,6 +1,6 @@
 use crate::highlighting::Type;
 pub struct Row {
-    string: String,
+    pub string: String,
     highlighting: Vec<Type>,
     pub is_highlighted: bool,
     len: usize,

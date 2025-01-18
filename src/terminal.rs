@@ -18,7 +18,7 @@ impl From<(u16, u16)> for Size {
 impl Default for Terminal {
     fn default() -> Self {
         let stdout = std::io::stdout().into_raw_mode().unwrap();
-        let size = Size::default();
+        let size = Size::from(termion::terminal_size().unwrap());
         Self {
             _stdout: stdout,
             size
@@ -32,7 +32,7 @@ impl Terminal {
     }
 
     pub fn get_size (&self) -> Size {
-        self.size
+        Size::from(termion::terminal_size().unwrap())
     }
 
     pub fn goto(&self, dest: Position) {

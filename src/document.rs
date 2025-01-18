@@ -3,11 +3,11 @@ use crate::row::Row;
 use crate::utils::HighlightingOptions;
 
 pub struct Document {
-    rows: Vec<Row>,
+    pub rows: Vec<Row>,
     pub file_name: String,
     pub is_loaded: bool,
-    dirty: bool,
-    file_type: FileType,
+    pub dirty: bool,
+    pub file_type: FileType,
 }
 
 impl Default for Document {
@@ -23,4 +23,9 @@ impl Default for Document {
             }
         }
     }
+
 }
+
+// impl Document {
+//
+// }

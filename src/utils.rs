@@ -38,6 +38,7 @@ impl StatusMessage {
     }
 }
 
+#[derive(PartialEq)]
 pub enum TerminalMode {
     Normal,
     Insert

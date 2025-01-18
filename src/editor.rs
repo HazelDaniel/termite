@@ -8,6 +8,7 @@ use crate::utils::{Position, StatusMessage, TerminalMode, Size, die};
 use crate::terminal::Terminal;
 use crate::config::{DEFAULT_QUIT_TIMES, PACKAGE_VERSION, EDITOR_NAME};
 use crate::document::Document;
+use crate::row::Row;
 
 pub struct Editor {
     should_quit: bool,
@@ -70,49 +71,121 @@ impl Editor {
         let Size {width, height} = self.terminal.get_size();
 
         self.terminal.cursor_hide();
+        self.terminal.clear_screen();
+        if self.should_quit {
+            self.terminal.cursor_show();
+            return Ok(())
+        }
 
-        self.terminal.goto(
+        self.move_cursor(
             Position {
                 x: self.cursor_position.x.saturating_sub(offset_x),
                 y: self.cursor_position.y.saturating_sub(offset_y)
             }
         );
 
+        self.draw_rows();
         self.terminal.cursor_show();
+        self.terminal.flush()?;
 
         Ok(())
     }
 
-    pub fn display_welcome_message () {
+    pub fn display_welcome_message (&self) {
+        let Size {width, height} = self.terminal.get_size();
         let welcome_message: String = "".to_owned() + EDITOR_NAME + ". v" + PACKAGE_VERSION;
         let message_len = welcome_message.len();
-
+        let width_diff = width - message_len as u16;
+        let pad_len = width_diff / 2;
+        let mut l_pad = " ".repeat(pad_len as usize);
+        l_pad.truncate(pad_len.saturating_sub(1) as usize);
+        let r_pad = " ".repeat(pad_len as usize);
+        print!("~{}{}{}\n\r", l_pad, welcome_message, r_pad);
     }
 
-    pub fn goto (&mut self, pos: Position) -> Result<(), io::Error> {
+    pub fn move_cursor (&mut self, pos: Position) -> Result<(), io::Error> {
         let Position {x, y} = pos;
 
-        self.cursor_position = Position{x, y};
         self.terminal.goto(Position{x, y});
 
         Ok(())
     }
 
     pub fn process_keys (&mut self) -> Result<(), io::Error> {
+
+        if self.mode == TerminalMode::Normal {
+            self.process_normal_mode()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn process_normal_mode (&mut self) -> Result<(), io::Error> {
+
         if let Some(key) = stdin().keys().next() {
             match key? {
                 Key::Char('\n') => {
                     print!("{}", "\n\r");
                 },
-                Key::Char(x) => {print!("{}", x)},
+                Key::Char('l') => {
+                    self.cursor_position.x = self.cursor_position.x.saturating_add(1);
+                },
+                Key::Char('j') => {
+                    self.cursor_position.y = self.cursor_position.y.saturating_add(1);
+                },
+                Key::Char('h') => {
+                    self.cursor_position.x = self.cursor_position.x.saturating_sub(1);
+                },
+                Key::Char('k') => {
+                    self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
+                },
+                Key::Char(x) => {
+                    if (self.mode == TerminalMode::Normal && !self.document.dirty && !self.document.is_loaded) {
+                        if x == 'i' {
+                            // switch to insert mode
+                        }
+                        ()
+                    } else {
+                        print!("{}", x);
+                    }
+                },
                 Key::Ctrl('q') => self.should_quit = true,
                 Key::Up | Key::Down | Key::Left | Key::Right => {},
                 _ => print!("random key pressed!")
             }
         }
 
-        self.terminal.flush()?;
-
         Ok(())
+    }
+
+    pub fn process_insert_mode (&mut self) -> Result<(), io::Error> {
+        Ok(())
+    }
+
+
+    pub fn draw_rows(&mut self) {
+        let Size {height, ..} = self.terminal.get_size();
+        for y in 0 ..height {
+            if let Some(row) = self.document.rows.get(y as usize) {
+            } else if y == height / 3 {
+                self.display_welcome_message();
+            } else {
+                if y == 1 {
+                    print!("\n\r");
+                } else {
+                    print!("~\n\r");
+                }
+            }
+        };
+        if !self.document.is_loaded {
+            self.move_cursor(Position::default());
+        }
+    }
+
+    pub fn draw_row(&mut self, row: &Row) {
+        if (row.string.is_empty()) {
+            print!("{}", "~\r");
+            return
+        }
     }
 }
