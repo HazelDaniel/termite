@@ -4,7 +4,7 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
-use crate::utils::{Position, StatusMessage, TerminalMode, Size, die};
+use crate::utils::{Position, StatusMessage, TerminalMode, Size, die, MovementData};
 use crate::terminal::Terminal;
 use crate::config::{DEFAULT_QUIT_TIMES, PACKAGE_VERSION, EDITOR_NAME};
 use crate::document::Document;
@@ -20,6 +20,7 @@ pub struct Editor {
     quit_times: u8,
     highlighted_word: Option<String>,
     mode: TerminalMode,
+    movement_data: MovementData,
 }
 
 impl Default for Editor {
@@ -34,6 +35,7 @@ impl Default for Editor {
             should_quit: false,
             status_message: None,
             mode: TerminalMode::Normal,
+            movement_data: MovementData::default(),
         }
     }
 }
@@ -131,12 +133,22 @@ impl Editor {
                         } else {
                             self.cursor_position.x = self.cursor_position.x.saturating_add(1);
                         }
+                        self.movement_data.last_nav_position.x = 0;
                     }
                 },
                 Key::Char('j') => {
+                    let Size {height, ..} = self.terminal.get_size();
+                    if self.cursor_position.y == height.saturating_sub(1) as u16 {
+                        return Ok(());
+                    }
                     if let Some(next_row) = self.document.rows.get(self.cursor_position.y.saturating_add(1) as usize) {
                         if next_row.len <= self.cursor_position.x as usize {
+                            self.movement_data.last_nav_position.x = self.cursor_position.x;
                             self.cursor_position.x = next_row.len.saturating_sub(1) as u16;
+                        } else {
+                            if self.movement_data.last_nav_position.x != 0 && self.cursor_position.x < height - 1 {
+                                self.cursor_position.x = self.movement_data.last_nav_position.x;
+                            }
                         }
                         self.cursor_position.y = self.cursor_position.y.saturating_add(1);
                     }
@@ -154,12 +166,22 @@ impl Editor {
                         } else {
                             self.cursor_position.x = self.cursor_position.x.saturating_sub(1);
                         }
+
+                        self.movement_data.last_nav_position.x = 0;
                     }
                 },
                 Key::Char('k') => {
+                    if self.cursor_position.y == 0 {
+                        return Ok(());
+                    }
                     if let Some(prev_row) = self.document.rows.get(self.cursor_position.y.saturating_sub(1) as usize) {
                         if prev_row.len <= self.cursor_position.x as usize {
+                            self.movement_data.last_nav_position.x = self.cursor_position.x;
                             self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
+                        } else {
+                            if self.movement_data.last_nav_position.x != 0 {
+                                self.cursor_position.x = self.movement_data.last_nav_position.x;
+                            }
                         }
                         self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
                     }

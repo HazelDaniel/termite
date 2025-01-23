@@ -13,6 +13,11 @@ pub struct Size {
     pub height: u16,
 }
 
+#[derive(Default, Debug)]
+pub struct MovementData {
+    pub last_nav_position: Position,
+}
+
 #[derive(Default)]
 pub struct HighlightingOptions {
     numbers: bool,
