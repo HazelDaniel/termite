@@ -24,7 +24,7 @@ pub struct Editor {
 
 impl Default for Editor {
     fn default() -> Self {
-        Self {
+         Self {
             offset: Position::default(),
             cursor_position: Position::default(),
             quit_times: DEFAULT_QUIT_TIMES,
@@ -39,9 +39,10 @@ impl Default for Editor {
 }
 
 impl Editor {
-    pub fn run (&mut self) -> Result<(), io::Error> {
+    pub fn run(&mut self) -> Result<(), io::Error> {
         let mut terminal = self.terminal.get_std_buffer();
-        let Size {width, height} = self.terminal.get_size();
+        let Size { width, height } = self.terminal.get_size();
+        self.document.load();
 
         loop {
             match self.refresh_screen() {
@@ -60,22 +61,19 @@ impl Editor {
                 Err(error) => die(error),
             }
         }
-
-
-
-        Ok(())
     }
-
-    pub fn refresh_screen (&mut self) -> Result<(), io::Error> {
-        let Position {x: offset_x, y: offset_y} = self.offset;
-        let Size {width, height} = self.terminal.get_size();
-
+    pub fn refresh_screen(&mut self) -> Result<(), io::Error> {
+        let Position { x: offset_x, y: offset_y } = self.offset;
+        let Size { width, height } = self.terminal.get_size();
+        self.move_cursor(Position::default());
         self.terminal.cursor_hide();
-        self.terminal.clear_screen();
         if self.should_quit {
+            self.terminal.clear_screen();
             self.terminal.cursor_show();
             return Ok(())
         }
+
+        self.draw_rows();
 
         self.move_cursor(
             Position {
@@ -83,16 +81,14 @@ impl Editor {
                 y: self.cursor_position.y.saturating_sub(offset_y)
             }
         );
-
-        self.draw_rows();
         self.terminal.cursor_show();
         self.terminal.flush()?;
 
         Ok(())
     }
 
-    pub fn display_welcome_message (&self) {
-        let Size {width, height} = self.terminal.get_size();
+    pub fn display_welcome_message(&self) {
+        let Size { width, height } = self.terminal.get_size();
         let welcome_message: String = "".to_owned() + EDITOR_NAME + ". v" + PACKAGE_VERSION;
         let message_len = welcome_message.len();
         let width_diff = width - message_len as u16;
@@ -103,16 +99,15 @@ impl Editor {
         print!("~{}{}{}\n\r", l_pad, welcome_message, r_pad);
     }
 
-    pub fn move_cursor (&mut self, pos: Position) -> Result<(), io::Error> {
-        let Position {x, y} = pos;
+    pub fn move_cursor(&self, pos: Position) -> Result<(), io::Error> {
+        let Position { x, y } = pos;
 
-        self.terminal.goto(Position{x, y});
+        self.terminal.goto(Position { x, y });
 
         Ok(())
     }
 
-    pub fn process_keys (&mut self) -> Result<(), io::Error> {
-
+    pub fn process_keys(&mut self) -> Result<(), io::Error> {
         if self.mode == TerminalMode::Normal {
             self.process_normal_mode()?;
         }
@@ -120,24 +115,54 @@ impl Editor {
         Ok(())
     }
 
-    pub fn process_normal_mode (&mut self) -> Result<(), io::Error> {
-
+    pub fn process_normal_mode(&mut self) -> Result<(), io::Error> {
         if let Some(key) = stdin().keys().next() {
             match key? {
                 Key::Char('\n') => {
                     print!("{}", "\n\r");
                 },
                 Key::Char('l') => {
-                    self.cursor_position.x = self.cursor_position.x.saturating_add(1);
+                    if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize) {
+                        if self.cursor_position.x == curr_row.len.saturating_sub(1) as u16 {
+                            if let Some(next_row) = self.document.rows.get(self.cursor_position.y.saturating_add(1) as usize) {
+                                self.cursor_position.y = self.cursor_position.y.saturating_add(1);
+                                self.cursor_position.x = 0;
+                            }
+                        } else {
+                            self.cursor_position.x = self.cursor_position.x.saturating_add(1);
+                        }
+                    }
                 },
                 Key::Char('j') => {
-                    self.cursor_position.y = self.cursor_position.y.saturating_add(1);
+                    if let Some(next_row) = self.document.rows.get(self.cursor_position.y.saturating_add(1) as usize) {
+                        if next_row.len <= self.cursor_position.x as usize {
+                            self.cursor_position.x = next_row.len.saturating_sub(1) as u16;
+                        }
+                        self.cursor_position.y = self.cursor_position.y.saturating_add(1);
+                    }
                 },
                 Key::Char('h') => {
-                    self.cursor_position.x = self.cursor_position.x.saturating_sub(1);
+                    if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize) {
+                        if self.cursor_position.x == 0_u16 {
+                            if (self.cursor_position.y == 0_u16) {
+                                return Ok(());
+                            }
+                            if let Some(prev_row) = self.document.rows.get(self.cursor_position.y.saturating_sub(1) as usize) {
+                                self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
+                                self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
+                            }
+                        } else {
+                            self.cursor_position.x = self.cursor_position.x.saturating_sub(1);
+                        }
+                    }
                 },
                 Key::Char('k') => {
-                    self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
+                    if let Some(prev_row) = self.document.rows.get(self.cursor_position.y.saturating_sub(1) as usize) {
+                        if prev_row.len <= self.cursor_position.x as usize {
+                            self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
+                        }
+                        self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
+                    }
                 },
                 Key::Char(x) => {
                     if (self.mode == TerminalMode::Normal && !self.document.dirty && !self.document.is_loaded) {
@@ -158,15 +183,17 @@ impl Editor {
         Ok(())
     }
 
-    pub fn process_insert_mode (&mut self) -> Result<(), io::Error> {
+    pub fn process_insert_mode(&mut self) -> Result<(), io::Error> {
         Ok(())
     }
 
+    pub fn draw_rows(&self) {
+        let Size { height, .. } = self.terminal.get_size();
 
-    pub fn draw_rows(&mut self) {
-        let Size {height, ..} = self.terminal.get_size();
-        for y in 0 ..height {
-            if let Some(row) = self.document.rows.get(y as usize) {
+        for y in 0..height {
+            self.terminal.clear_current_line();
+            if let Some(row) = self.document.rows.get(self.offset.y.saturating_add(y) as usize) {
+                self.draw_row(row);
             } else if y == height / 3 {
                 self.display_welcome_message();
             } else {
@@ -177,15 +204,14 @@ impl Editor {
                 }
             }
         };
-        if !self.document.is_loaded {
-            self.move_cursor(Position::default());
-        }
     }
 
-    pub fn draw_row(&mut self, row: &Row) {
-        if (row.string.is_empty()) {
-            print!("{}", "~\r");
-            return
+    pub fn draw_row(&self, row: &Row) {
+        if (!row.string.is_empty()) {
+            row.render(&self.cursor_position);
+            print!("{}", "\n\r");
+        } else {
+            print!("{}", "\n\r");
         }
     }
-}
+ }

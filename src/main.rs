@@ -11,6 +11,7 @@ mod utils;
 
 use std::io;
 use editor::Editor;
+use std::env;
 
 
 fn main () -> Result<(), io::Error> {

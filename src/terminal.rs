@@ -18,10 +18,10 @@ impl From<(u16, u16)> for Size {
 impl Default for Terminal {
     fn default() -> Self {
         let stdout = std::io::stdout().into_raw_mode().unwrap();
-        let size = Size::from(termion::terminal_size().unwrap());
+        let Size {width, height} = Size::from(termion::terminal_size().unwrap());
         Self {
             _stdout: stdout,
-            size
+            size: Size { width, height: height.saturating_sub(1) },
         }
     }
 }
@@ -32,7 +32,7 @@ impl Terminal {
     }
 
     pub fn get_size (&self) -> Size {
-        Size::from(termion::terminal_size().unwrap())
+        self.size
     }
 
     pub fn goto(&self, dest: Position) {
@@ -42,6 +42,10 @@ impl Terminal {
 
     pub fn clear_screen(&self) {
         print!("{}", termion::clear::All);
+    }
+
+    pub fn clear_current_line(&self) {
+        print!("{}", termion::clear::CurrentLine);
     }
 
     pub fn cursor_hide(&self) {
