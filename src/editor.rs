@@ -118,6 +118,8 @@ impl Editor {
     }
 
     pub fn process_normal_mode(&mut self) -> Result<(), io::Error> {
+        let Size {height, ..} = self.terminal.get_size();
+
         if let Some(key) = stdin().keys().next() {
             match key? {
                 Key::Char('\n') => {
@@ -137,7 +139,6 @@ impl Editor {
                     }
                 },
                 Key::Char('j') => {
-                    let Size {height, ..} = self.terminal.get_size();
                     if self.cursor_position.y == height.saturating_sub(1) as u16 {
                         return Ok(());
                     }
@@ -180,6 +181,18 @@ impl Editor {
                             self.cursor_position.x = self.movement_data.last_nav_position.x;
                         }
                         self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
+                    }
+                },
+                Key::Char('G') => {
+                    self.cursor_position.y = self.document.rows.len().saturating_sub(1) as u16;
+                },
+                Key::Char('0') => {
+                    self.cursor_position.x = 0;
+                    self.movement_data.last_nav_position.x = self.cursor_position.x;
+                },
+                Key::Char('$') => {
+                    if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize) {
+                        self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
                     }
                 },
                 Key::Char(x) => {
