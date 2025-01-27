@@ -193,6 +193,7 @@ impl Editor {
                 Key::Char('$') => {
                     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize) {
                         self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                        self.movement_data.last_nav_position.x = self.cursor_position.x;
                     }
                 },
                 Key::Char(x) => {
