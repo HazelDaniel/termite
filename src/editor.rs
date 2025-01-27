@@ -83,6 +83,7 @@ impl Editor {
                 y: self.cursor_position.y.saturating_sub(offset_y)
             }
         );
+
         self.terminal.cursor_show();
         self.terminal.flush()?;
 
@@ -139,7 +140,7 @@ impl Editor {
                     }
                 },
                 Key::Char('j') => {
-                    if self.cursor_position.y == height.saturating_sub(1) as u16 {
+                    if self.cursor_position.y == self.document.rows.len().saturating_sub(1) as u16 {
                         return Ok(());
                     }
 
@@ -217,6 +218,7 @@ impl Editor {
                 _ => print!("random key pressed!")
             }
         }
+        self.scroll();
 
         Ok(())
     }
@@ -226,12 +228,12 @@ impl Editor {
     }
 
     pub fn draw_rows(&self) {
-        let Size { height, .. } = self.terminal.get_size();
+        let Size { height, width } = self.terminal.get_size();
 
         for y in 0..height {
             self.terminal.clear_current_line();
             if let Some(row) = self.document.rows.get(self.offset.y.saturating_add(y) as usize) {
-                self.draw_row(row);
+                self.draw_row(row, width);
             } else if y == height / 3 {
                 self.display_welcome_message();
             } else {
@@ -244,12 +246,30 @@ impl Editor {
         };
     }
 
-    pub fn draw_row(&self, row: &Row) {
+    pub fn draw_row(&self, row: &Row, width: u16) {
         if (!row.string.is_empty()) {
-            row.render(&self.cursor_position);
+            row.render(&self.cursor_position, self.offset.x, self.offset.x.saturating_add(width));
             print!("{}", "\n\r");
         } else {
             print!("{}", "\n\r");
+        }
+    }
+
+    pub fn scroll(&mut self) {
+        let Size {height, width} = self.terminal.get_size();
+        let Position {x, y} = self.cursor_position;
+        let Position {x: offset_x, y: offset_y} = self.offset;
+
+        if y < offset_y {
+            self.offset.y = y;
+        } else if y >= offset_y.saturating_add(height) {
+            self.offset.y = y.saturating_sub(height).saturating_add(1);
+        }
+
+        if x < offset_x {
+            self.offset.x = x;
+        } else if x >= offset_x.saturating_add(width) {
+            self.offset.x = x.saturating_sub(width).saturating_add(1);
         }
     }
  }

@@ -31,16 +31,16 @@ impl From<String> for Row {
 }
 
 impl Row {
-    pub fn render(&self, cursor_pos: &Position) -> u16 {
+    pub fn render(&self, cursor_pos: &Position, start: u16, end: u16) -> u16 {
         // get highlighting information
         // go through the cells, print based on the highlighting information
         if (self.string.is_empty()) {
             return 0_u16
         }
-        for entry in self.string[..].graphemes(true) {
+        for entry in self.string.graphemes(true).skip(start as usize).take(end.saturating_sub(start) as usize) {
             print!("{}", entry);
         }
 
-        self.string.graphemes(true).count() as u16
+        end.saturating_sub(start)
     }
 }
