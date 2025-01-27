@@ -133,7 +133,7 @@ impl Editor {
                         } else {
                             self.cursor_position.x = self.cursor_position.x.saturating_add(1);
                         }
-                        self.movement_data.last_nav_position.x = 0;
+                        self.movement_data.last_nav_position.x = self.cursor_position.x;
                     }
                 },
                 Key::Char('j') => {
@@ -141,17 +141,16 @@ impl Editor {
                     if self.cursor_position.y == height.saturating_sub(1) as u16 {
                         return Ok(());
                     }
+
                     if let Some(next_row) = self.document.rows.get(self.cursor_position.y.saturating_add(1) as usize) {
-                        if next_row.len <= self.cursor_position.x as usize {
-                            self.movement_data.last_nav_position.x = self.cursor_position.x;
+                        if next_row.len <= self.movement_data.last_nav_position.x as usize {
                             self.cursor_position.x = next_row.len.saturating_sub(1) as u16;
                         } else {
-                            if self.movement_data.last_nav_position.x != 0 && self.cursor_position.x < height - 1 {
-                                self.cursor_position.x = self.movement_data.last_nav_position.x;
-                            }
+                            self.cursor_position.x = self.movement_data.last_nav_position.x;
                         }
                         self.cursor_position.y = self.cursor_position.y.saturating_add(1);
                     }
+
                 },
                 Key::Char('h') => {
                     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize) {
@@ -167,7 +166,7 @@ impl Editor {
                             self.cursor_position.x = self.cursor_position.x.saturating_sub(1);
                         }
 
-                        self.movement_data.last_nav_position.x = 0;
+                        self.movement_data.last_nav_position.x = self.cursor_position.x;
                     }
                 },
                 Key::Char('k') => {
@@ -175,13 +174,10 @@ impl Editor {
                         return Ok(());
                     }
                     if let Some(prev_row) = self.document.rows.get(self.cursor_position.y.saturating_sub(1) as usize) {
-                        if prev_row.len <= self.cursor_position.x as usize {
-                            self.movement_data.last_nav_position.x = self.cursor_position.x;
+                        if prev_row.len <= self.movement_data.last_nav_position.x as usize {
                             self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
                         } else {
-                            if self.movement_data.last_nav_position.x != 0 {
-                                self.cursor_position.x = self.movement_data.last_nav_position.x;
-                            }
+                            self.cursor_position.x = self.movement_data.last_nav_position.x;
                         }
                         self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
                     }
