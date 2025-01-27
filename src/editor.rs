@@ -184,7 +184,14 @@ impl Editor {
                     }
                 },
                 Key::Char('G') => {
-                    self.cursor_position.y = self.document.rows.len().saturating_sub(1) as u16;
+                    if let Some(curr_row) = self.document.rows.get(self.document.rows.len().saturating_sub(1) as usize) {
+                        self.cursor_position.y = self.document.rows.len().saturating_sub(1) as u16;
+                        if curr_row.len <= self.movement_data.last_nav_position.x as usize {
+                            self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                        } else {
+                            self.cursor_position.x = self.movement_data.last_nav_position.x;
+                        }
+                    }
                 },
                 Key::Char('0') => {
                     self.cursor_position.x = 0;
@@ -201,7 +208,6 @@ impl Editor {
                         if x == 'i' {
                             // switch to insert mode
                         }
-                        ()
                     } else {
                         print!("{}", x);
                     }
