@@ -248,7 +248,7 @@ impl Editor {
 
     pub fn draw_row(&self, row: &Row, width: u16) {
         if (!row.string.is_empty()) {
-            row.render(&self.cursor_position, self.offset.x, self.offset.x.saturating_add(width));
+            row.render(self.offset.x, self.offset.x.saturating_add(width));
             print!("{}", "\n\r");
         } else {
             print!("{}", "\n\r");

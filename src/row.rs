@@ -31,7 +31,7 @@ impl From<String> for Row {
 }
 
 impl Row {
-    pub fn render(&self, cursor_pos: &Position, start: u16, end: u16) -> u16 {
+    pub fn render(&self, start: u16, end: u16) -> u16 {
         // get highlighting information
         // go through the cells, print based on the highlighting information
         if (self.string.is_empty()) {
