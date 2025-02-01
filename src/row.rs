@@ -154,12 +154,16 @@ impl Row {
         if (keyword.is_empty()) {
             return false;
         }
-        if options.primary_keywords.contains(&keyword) || options.secondary_keywords.contains(&keyword) {
+        if options.primary_keywords.contains(&keyword)
+            || options.secondary_keywords.contains(&keyword)
+            || options.known_items.contains(&keyword){
             for _ in 0..keyword.len() {
                 if options.primary_keywords.contains(&keyword) {
                     self.highlighting.push(Type::PrimaryKeyword);
-                } else {
+                } else if options.secondary_keywords.contains(&keyword) {
                     self.highlighting.push(Type::SecondaryKeyword);
+                } else {
+                    self.highlighting.push(Type::KnownItem);
                 }
             }
         } else {

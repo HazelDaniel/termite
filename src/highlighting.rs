@@ -9,6 +9,7 @@ pub enum Type {
     MultilineComment,
     PrimaryKeyword,
     SecondaryKeyword,
+    KnownItem
 }
 
 impl Type {
@@ -21,6 +22,7 @@ impl Type {
             Type::Comment | Type::MultilineComment => color::Rgb(153, 153, 150),
             Type::PrimaryKeyword => color::Rgb(183, 65, 14),
             Type::SecondaryKeyword => color::Rgb(42, 161, 152),
+            Type::KnownItem => color::Rgb(42, 201, 152),
             _ => color::Rgb(255, 255, 255),
         }
     }
