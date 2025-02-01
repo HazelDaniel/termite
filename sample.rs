@@ -96,6 +96,8 @@ impl Row {
         if (self.string.is_empty()) {
             return 0_u16
         }
+        let empty = "";
+        let empty_char = '';
         let x = " /* */ \
    world\
 hello";

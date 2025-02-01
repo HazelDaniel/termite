@@ -46,7 +46,8 @@ impl Row {
         let curr_str_len = self.string.graphemes(true).count();
 
         while *index < curr_str_len {
-            if (self.highlight_ml(options, word, hl_streak, index)
+            if (
+                self.highlight_ml(options, word, hl_streak, index)
                 || self.highlight_str(options, word, hl_streak, index)
                 || self.highlight_comment(options, word, hl_streak, index)
                 || self.highlight_char(options, word, hl_streak, index)
@@ -62,8 +63,6 @@ impl Row {
 
     pub fn render(&self, start: u16, end: u16) -> u16 {
         let mut res_string: String = String::new();
-        // get highlighting information
-        // go through the cells, print based on the highlighting information
         if (self.string.is_empty()) {
             return 0_u16;
         }
@@ -136,7 +135,7 @@ impl Row {
         let mut terminated: bool = false;
 
         for cluster in &graphemes[..] {
-            if quote_render_start == *index { // opening quote
+            if *index_cpy == *index { // opening quote
                 *index_cpy += 1;
                 continue;
             }
@@ -205,7 +204,7 @@ impl Row {
 
         // if you've approached the end of a line whilst still being in a quote streak and you didn't meet a \, you should stop the quote streak
         for cluster in &graphemes[..] {
-           if quote_render_start == *index { // opening quote
+           if *index_cpy == *index { // opening quote
                *index_cpy += 1;
                continue;
            }
@@ -219,7 +218,7 @@ impl Row {
            }
            *index_cpy += 1
         }
-        quote_render_end = (*index).saturating_add((*index_cpy).saturating_sub(*index)).saturating_add(1);
+        quote_render_end = (*index_cpy);
 
         if quote_render_end >= curr_str_len {
             quote_render_end = curr_str_len;
