@@ -51,6 +51,7 @@ impl Row {
                 || self.highlight_str(options, word, hl_streak, index)
                 || self.highlight_comment(options, word, hl_streak, index)
                 || self.highlight_char(options, word, hl_streak, index)
+                || self.highlight_keyword(options, word, hl_streak, index)
             ) {
                 continue;
             } else {
@@ -92,6 +93,81 @@ impl Row {
         streak: &mut HighlightStreak,
         index: &mut usize,
     ) -> bool {
+        true
+    }
+
+    pub fn highlight_keyword(
+        &mut self,
+        options: &HighlightingOptions,
+        word: &Option<String>,
+        streak: &mut HighlightStreak,
+        index: &mut usize,
+    ) -> bool {
+        let curr_str_len = self.string.graphemes(true).count();
+        let ref mut index_cpy  = (*index).clone();
+        let mut graphemes = self.string.graphemes(true).skip(*index_cpy).collect::<Vec<&str>>();
+        let graphemes_shift_left = self.string.graphemes(true).skip((*index_cpy).saturating_sub(1)).collect::<Vec<&str>>();
+
+        if let Some(word_start) = graphemes.get(0) {
+            if (*word_start).is_ascii() {
+                let letter = (*word_start).chars().next();
+                match letter {
+                    Some(c) => {
+                        if !((c as char).is_ascii_graphic() && ((c as char).is_alphabetic() || (c as char) == '_')) {
+                            return false;
+                        }
+                        if let Some(prev) = graphemes_shift_left.get(0) {
+                            if !prev.trim().is_empty() && *index != 0 {
+                                return false;
+                            }
+                        }
+                    },
+                    _ => {
+                        return false;
+                    }
+                }
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        /*INVARIANT:
+        * we are starting at the beginning of a valid word
+        */
+
+        let mut keyword: String = String::new();
+        let mut k_count = 0;
+        while k_count < graphemes.len() {
+            if let Some(entry) = graphemes.get(k_count) {
+                if (*entry).is_ascii() && ((*entry).chars().next().unwrap_or(' ').is_alphabetic() || (*entry).chars().next().unwrap_or(' ') == '_') {
+                    keyword.push_str(*entry);
+                } else {
+                    break;
+                }
+            }
+
+            k_count += 1;
+        }
+
+        if (keyword.is_empty()) {
+            return false;
+        }
+        if options.primary_keywords.contains(&keyword) || options.secondary_keywords.contains(&keyword) {
+            for _ in 0..keyword.len() {
+                if options.primary_keywords.contains(&keyword) {
+                    self.highlighting.push(Type::PrimaryKeyword);
+                } else {
+                    self.highlighting.push(Type::SecondaryKeyword);
+                }
+            }
+        } else {
+            return false;
+        }
+
+        *index += keyword.len();
+
         true
     }
 

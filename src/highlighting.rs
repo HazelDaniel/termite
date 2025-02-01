@@ -19,7 +19,7 @@ impl Type {
             Type::String => color::Rgb(211, 54, 130),
             Type::Character => color::Rgb(108, 113, 196),
             Type::Comment | Type::MultilineComment => color::Rgb(153, 153, 150),
-            Type::PrimaryKeyword => color::Rgb(181, 137, 0),
+            Type::PrimaryKeyword => color::Rgb(183, 65, 14),
             Type::SecondaryKeyword => color::Rgb(42, 161, 152),
             _ => color::Rgb(255, 255, 255),
         }

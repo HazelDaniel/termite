@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 #[derive(Default, Debug)]
 pub struct Position {
@@ -26,13 +27,13 @@ pub struct MovementData {
 }
 
 pub struct HighlightingOptions {
-    numbers: bool,
-    strings: bool,
-    characters: bool,
-    comments: bool,
-    multiline_comments: bool,
-    primary_keywords: Vec<String>,
-    secondary_keywords: Vec<String>,
+    pub numbers: bool,
+    pub strings: bool,
+    pub characters: bool,
+    pub comments: bool,
+    pub multiline_comments: bool,
+    pub primary_keywords: HashSet<String>,
+    pub secondary_keywords: HashSet<String>,
 }
 
 impl Default for HighlightingOptions {
@@ -43,7 +44,7 @@ impl Default for HighlightingOptions {
             characters: true,
             comments: true,
             multiline_comments: true,
-            primary_keywords: vec![
+            primary_keywords: HashSet::from([
                 "as".to_string(),
                 "break".to_string(),
                 "const".to_string(),
@@ -95,8 +96,8 @@ impl Default for HighlightingOptions {
                 "async".to_string(),
                 "await".to_string(),
                 "try".to_string(),
-            ],
-            secondary_keywords: vec![
+            ]),
+            secondary_keywords: HashSet::from([
                 "bool".to_string(),
                 "char".to_string(),
                 "i8".to_string(),
@@ -111,11 +112,10 @@ impl Default for HighlightingOptions {
                 "usize".to_string(),
                 "f32".to_string(),
                 "f64".to_string(),
-            ],
+            ]),
         }
     }
 }
-
 pub struct StatusMessage {
     pub text: String,
     pub time: Instant,

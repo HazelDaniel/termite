@@ -5,7 +5,7 @@ use crate::utils::{find_grapheme_index, HighlightingOptions, Position};
 pub struct Row {
     pub string: String,
     highlighting: Vec<Type>,
-    pub is_highlighted: /* hello world */ bool,
+    pub is_highlighted: /* hello world */ bool, /*goodbye world*/
     pub len: usize,
 }
 
