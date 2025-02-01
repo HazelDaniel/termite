@@ -1,8 +1,15 @@
 use std::error::Error;
+use unicode_segmentation::UnicodeSegmentation;
 #[derive(Default, Debug)]
 pub struct Position {
     pub x: u16,
     pub y: u16,
+}
+
+#[derive(Default, Debug)]
+pub struct HighlightStreak {
+    pub comment: u16,
+    pub quote: bool,
 }
 
 use std::time::Instant;
@@ -25,7 +32,7 @@ pub struct HighlightingOptions {
     comments: bool,
     multiline_comments: bool,
     primary_keywords: Vec<String>,
-    secondary_keywords: Vec<String>
+    secondary_keywords: Vec<String>,
 }
 
 impl Default for HighlightingOptions {
@@ -126,9 +133,27 @@ impl StatusMessage {
 #[derive(PartialEq)]
 pub enum TerminalMode {
     Normal,
-    Insert
+    Insert,
 }
 
-pub fn die (err: impl Error) {
+pub fn die(err: impl Error) {
     panic!("{}", err);
 }
+
+pub fn find_grapheme_index(haystack: &str, offset: usize, needle: &str) -> Option<usize> {
+    let haystack_graphemes: Vec<&str> = haystack.graphemes(true).skip(offset).collect();
+    let needle_graphemes: Vec<&str> = needle.graphemes(true).collect();
+
+    haystack_graphemes
+        .windows(needle_graphemes.len()) // Create sliding windows of the needle's length
+        .position(|window| window == needle_graphemes.as_slice()) // Find first occurrence
+}
+
+// pub fn fuzzy_find_grapheme_index(haystack: &str, offset: usize, needle: &str) -> Option<usize> {
+//     let haystack_graphemes: Vec<&str> = haystack.graphemes(true).skip(offset).collect();
+//     let needle_graphemes: Vec<&str> = needle.graphemes(true).collect();
+//
+//     haystack_graphemes
+//         .windows(needle_graphemes.len()) // Create sliding windows of the needle's length
+//         .position(|window| window == needle_graphemes.as_slice()) // Find first occurrence
+// }

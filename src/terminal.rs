@@ -1,7 +1,7 @@
-use termion::raw::{IntoRawMode, RawTerminal};
+use crate::utils::{Position, Size};
 use std::fmt;
 use std::io::Write;
-use crate::utils::{Position, Size};
+use termion::raw::{IntoRawMode, RawTerminal};
 
 pub struct Terminal {
     size: Size,
@@ -11,33 +11,42 @@ pub struct Terminal {
 impl From<(u16, u16)> for Size {
     fn from(tuple: (u16, u16)) -> Self {
         let (x, y) = tuple;
-        Size { width: x, height: y }
+        Size {
+            width: x,
+            height: y,
+        }
     }
 }
 
 impl Default for Terminal {
     fn default() -> Self {
         let stdout = std::io::stdout().into_raw_mode().unwrap();
-        let Size {width, height} = Size::from(termion::terminal_size().unwrap());
+        let Size { width, height } = Size::from(termion::terminal_size().unwrap());
         Self {
             _stdout: stdout,
-            size: Size { width, height: height.saturating_sub(1) },
+            size: Size {
+                width,
+                height: height.saturating_sub(1),
+            },
         }
     }
 }
 
 impl Terminal {
-    pub fn get_std_buffer(& self) -> &RawTerminal<std::io::Stdout> {
+    pub fn get_std_buffer(&self) -> &RawTerminal<std::io::Stdout> {
         &self._stdout
     }
 
-    pub fn get_size (&self) -> Size {
+    pub fn get_size(&self) -> Size {
         self.size
     }
 
     pub fn goto(&self, dest: Position) {
-        let Position {x, y} = dest;
-        print!("{}", termion::cursor::Goto(x.saturating_add(1), y.saturating_add(1)));
+        let Position { x, y } = dest;
+        print!(
+            "{}",
+            termion::cursor::Goto(x.saturating_add(1), y.saturating_add(1))
+        );
     }
 
     pub fn clear_screen(&self) {
@@ -56,9 +65,8 @@ impl Terminal {
         print!("{}", termion::cursor::Show);
     }
 
-    pub fn flush (&mut self) -> Result<(), std::io::Error> {
+    pub fn flush(&mut self) -> Result<(), std::io::Error> {
         self._stdout.flush()?;
         Ok(())
     }
-
 }

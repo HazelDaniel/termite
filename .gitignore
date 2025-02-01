@@ -2,3 +2,5 @@ target
 .idea
 demo*
 demo.gif
+test.rs
+TODO.txt

@@ -9,12 +9,11 @@ mod row;
 mod terminal;
 mod utils;
 
-use std::io;
 use editor::Editor;
 use std::env;
+use std::io;
 
-
-fn main () -> Result<(), io::Error> {
+fn main() -> Result<(), io::Error> {
     let mut editor = Editor::default();
 
     editor.run()?;
