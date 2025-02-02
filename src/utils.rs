@@ -114,7 +114,7 @@ impl Default for HighlightingOptions {
                 "f32".to_string(),
                 "f64".to_string(),
             ]),
-            known_items: HashSet::from(["String".to_string(), "Ok".to_string(), "Err".to_string(), "Some".to_string(), "None".to_string()])
+            known_items: HashSet::from(["String".to_string(), "Ok".to_string(), "Err".to_string(), "Some".to_string(), "None".to_string(), "Vec".to_string()])
         }
     }
 }

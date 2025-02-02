@@ -62,7 +62,7 @@ impl Terminal {
     }
 
     pub fn cursor_show(&self) {
-        print!("{}", termion::cursor::Show);
+        print!("{}{}", termion::cursor::Show, termion::cursor::SteadyBlock);
     }
 
     pub fn flush(&mut self) -> Result<(), std::io::Error> {

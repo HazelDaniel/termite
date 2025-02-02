@@ -3,7 +3,7 @@ use crate::highlighting::Type;
 use crate::utils::{find_grapheme_index, HighlightingOptions, Position};
 
 pub struct Row {
-    pub string: String,
+    pub string: Option<String>,
     highlighting: Vec<Type>,
     pub is_highlighted: /* hello world */ bool, /*goodbye world*/
     pub len: usize,
@@ -81,11 +81,11 @@ impl Row {
         }
     }
 
-    /****
-    ---------
-    -------
-    ----/* hello // world // world */
-    */
+"/****\
+    ---------\
+    -------\
+    ----/* hello // world // world */\
+    */"
 
     //world /*
 
@@ -101,6 +101,10 @@ impl Row {
         let x = " /* */ \
    world\
 hello";
+        let escape_string = "\\hello\\\"world\\\\";
+
+        let escape_string2 = "\\hello\\\\world\
+world";
         for (index, entry) in self.string.graphemes(true).skip(start as usize).take(end.saturating_sub(start) as usize).enumerate() {
             res_string.push_str(format!("{}{}", termion::color::Fg(self.highlighting.get(index).unwrap_or(&Type::None).to_color()), entry).as_str());
         }

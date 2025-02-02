@@ -212,6 +212,7 @@ impl Row {
         let ref mut index_cpy  = (*index).clone();
         let mut quote_render_end: usize = 0;
         let mut graphemes = self.string.graphemes(true).skip(*index_cpy).collect::<Vec<&str>>();
+        // let mut og_graphemes : Vec<&str> =  self.string.graphemes(true).collect();
         let mut terminated: bool = false;
 
         for cluster in &graphemes[..] {
@@ -220,6 +221,16 @@ impl Row {
                 continue;
             }
             if *cluster == "'" {
+                // let mut back_track = (*index).saturating_sub(1);
+                // while back_track >= 0 {
+                //     if let Some(prev) = og_graphemes.get(back_track) {
+                //         match *prev {
+                //
+                //         }
+                //     }
+                //     backtrack -= 1;
+                // }
+
                 if let Some(prev) = graphemes.get((*index_cpy).saturating_sub(*index).saturating_sub(1)) {
                     if *prev != "\\" {
                         *index_cpy += 1;
@@ -227,6 +238,7 @@ impl Row {
                         break;
                     }
                 }
+
             }
             *index_cpy += 1
         }
@@ -281,8 +293,8 @@ impl Row {
         let ref mut index_cpy  = (*index).clone();
         let mut quote_render_end: usize = 0;
         let mut graphemes = self.string.graphemes(true).skip(*index_cpy).collect::<Vec<&str>>();
+        let og_graphemes: Vec<&str> = self.string.graphemes(true).collect();
 
-        // if you've approached the end of a line whilst still being in a quote streak and you didn't meet a \, you should stop the quote streak
         for cluster in &graphemes[..] {
            if *index_cpy == *index { // opening quote
                *index_cpy += 1;
@@ -293,6 +305,29 @@ impl Row {
                    if *prev != "\\" {
                        *index_cpy += 1;
                        break;
+                   } else {
+                       let mut back_track = 0;
+                       let mut escape_pos = (*index_cpy).saturating_sub(1);
+                       while escape_pos >= 0 {
+                           if let Some(slash) = og_graphemes.get(escape_pos) {
+                               match *slash {
+                                   "\\" => {
+                                       back_track += 1;
+                                   },
+                                   _ => {
+                                       break;
+                                   }
+                               }
+                           } else {
+                               break;
+                           }
+                           escape_pos -= 1;
+                       }
+
+                       if back_track % 2 == 0 {
+                           *index_cpy += 1;
+                           break;
+                       }
                    }
                }
            }
