@@ -117,8 +117,15 @@ impl Row {
                             return false;
                         }
                         if let Some(prev) = graphemes_shift_left.get(0) {
-                            if !prev.trim().is_empty() && *index != 0 {
-                                return false;
+                            if (!prev.trim().is_empty() && prev.is_ascii()) && *index != 0 {
+                                match prev.chars().next() {
+                                    Some(c) => {
+                                        if (c.is_alphabetic() || c == '_') {
+                                            return false;
+                                        }
+                                    },
+                                    _ => {}
+                                }
                             }
                         }
                     },
@@ -141,7 +148,7 @@ impl Row {
         let mut k_count = 0;
         while k_count < graphemes.len() {
             if let Some(entry) = graphemes.get(k_count) {
-                if (*entry).is_ascii() && ((*entry).chars().next().unwrap_or(' ').is_alphabetic() || (*entry).chars().next().unwrap_or(' ') == '_') {
+                if (*entry).chars().next().unwrap_or(' ').is_ascii_alphanumeric() || (*entry).chars().next().unwrap_or(' ') == '_' {
                     keyword.push_str(*entry);
                 } else {
                     break;
@@ -429,7 +436,9 @@ impl Row {
             if *cluster == "*" {
                 if let Some(next) = graphemes.get((*index_cpy).saturating_sub(*index).saturating_add(1)) {
                     if *next == "/" {
+                        *index_cpy += 2;
                         streak.comment = streak.comment.saturating_sub(1);
+                        continue;
                     }
                 }
             }

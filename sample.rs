@@ -2,12 +2,26 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::highlighting::Type;
 use crate::utils::{find_grapheme_index, HighlightingOptions, Position};
 
-pub struct Row {
-    pub string: Option<String>,
+/* multiline
+/*
+/*/ world/*
+*/ /*
+*/
+comment */
+String */
+*/ pub struct Row {
+    pub string: Vec<String>,
+    pub string2: Option<String>,
     highlighting: Vec<Type>,
     pub is_highlighted: /* hello world */ bool, /*goodbye world*/
     pub len: usize,
 }
+
+/**
+* @param1: /*testing*/
+* @param2: testing again
+*
+*/
 
 impl Default for Row {
     fn default() -> Self {
@@ -25,6 +39,28 @@ impl From<String 'a> for Row {
         let mut new_row = Row::default();
         let greeting = 'hello';
         let mut character = 'h';
+
+        let ordi = -10000_000; // the preceding character before the start of a valid number could
+        // either be '-' or empty
+        let ordi = 10000_000;
+        let ordi = 10000_000_u32;
+        let ordi = 2;
+
+        let fl = 2_.5e-32___f64;
+        let fl = 2.5_e-32___f64;
+        let fl = 2.05e3_f32;
+        let fl = 2.0;
+
+        let bin = 0b1010101010____u32;
+        let bin = 0b101010_i32;
+        let bin = 0b_101010_i32;
+
+        let oct = 0o101010_i32;
+        let oct = 0o_101010_i32;
+
+        let hx = 0x_82323_i32;
+        let hx = 0x82323e3_i32;
+
         new_row.string = string.clone();
         new_row.len = string[..].graphemes(true).count();
 
@@ -81,7 +117,7 @@ impl Row {
         }
     }
 
-"/****\
+/****\
     ---------\
     -------\
     ----/* hello // world // world */\
@@ -97,7 +133,7 @@ impl Row {
             return 0_u16
         }
         let empty = "";
-        let empty_char = '';
+        let empty_char = 'h';
         let x = " /* */ \
    world\
 hello";
