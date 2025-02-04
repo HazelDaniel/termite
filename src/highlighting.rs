@@ -15,7 +15,7 @@ pub enum Type {
 impl Type {
     pub fn to_color(&self) -> impl color::Color {
         match self {
-            Type::Number => color::Rgb(220, 163, 163),
+            Type::Number => color::Rgb(220, 203, 203),
             Type::Pattern => color::Rgb(38, 139, 210),
             Type::String => color::Rgb(204, 95, 104),
             Type::Character => color::Rgb(204, 95, 104),

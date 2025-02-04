@@ -42,14 +42,19 @@ impl From<String 'a> for Row {
 
         let ordi = -10000_000; // the preceding character before the start of a valid number could
         // either be '-' or empty
-        let ordi = 10000_000;
-        let ordi = 10000_000_u32;
-        let ordi = 2;
+        let ordi2_0 = 10000_000;
+        let ordi200 = 10000_000_u32;
+        let ordi200 = 10000_000_usize;
+        let ordi = 02e2f64;
+        let ordi = 02e3;
 
         let fl = 2_.5e-32___f64;
+        let fl = 2_.5e-32___x64;
         let fl = 2.5_e-32___f64;
+        let fl = 2_.5_e32___f64;
         let fl = 2.05e3_f32;
         let fl = 2.0;
+        let fl = 55.0f64;
 
         let bin = 0b1010101010____u32;
         let bin = 0b101010_i32;

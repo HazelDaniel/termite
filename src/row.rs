@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::time::Duration;
 use std::thread;
 use crate::highlighting::Type;
@@ -52,6 +53,7 @@ impl Row {
                 || self.highlight_comment(options, word, hl_streak, index)
                 || self.highlight_char(options, word, hl_streak, index)
                 || self.highlight_keyword(options, word, hl_streak, index)
+                || self.highlight_number(options, word, hl_streak, index)
             ) {
                 continue;
             } else {
@@ -93,7 +95,253 @@ impl Row {
         streak: &mut HighlightStreak,
         index: &mut usize,
     ) -> bool {
+        self.highlight_float(options, word, streak, index) // order matters here since a float is valid decimal to some extent
+        || self.highlight_decimal(options, word, streak, index, false)
+        // || self.highlight_octal(options, word, streak, index)
+        // || self.highlight_binary(options, word, streak, index)
+        // || self.highlight_hex(options, word, streak, index)
+    }
+
+    pub fn highlight_decimal(
+        &mut self,
+        options: &HighlightingOptions,
+        word: &Option<String>,
+        streak: &mut HighlightStreak,
+        index: &mut usize,
+        standard_mode: bool
+    ) -> bool {
+        let curr_str_len = self.string.graphemes(true).count();
+        let ref mut index_cpy  = (*index).clone();
+        let mut graphemes = self.string.graphemes(true).skip(*index_cpy).collect::<Vec<&str>>();
+        let graphemes_shift_left = self.string.graphemes(true).skip((*index_cpy).saturating_sub(1)).collect::<Vec<&str>>();
+
+        if let Some(dec_start) = graphemes.get(0) {
+            if !(*dec_start).chars().next().unwrap_or(' ').is_ascii_digit() {
+                return false;
+            }
+            match (*dec_start).chars().next() {
+                Some(c) => {
+                    if let Some(prev) = graphemes_shift_left.get(0) {
+                        if (!prev.trim().is_empty() && prev.is_ascii()) && *index != 0 {
+                            match prev.chars().next() {
+                                Some(c) => {
+                                    if (c.is_ascii_alphanumeric() || c == '_') { return false; }
+                                },
+                                _ => {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                },
+                _ => {
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
+
+        /*INVARIANT:
+        * '*index' is always at the start of a valid decimal
+        */
+
+        let mut k_count = 0; while k_count < graphemes.len() {
+            if let Some(entry) = graphemes.get(k_count) {
+                if !(*entry).chars().next().unwrap_or(' ').is_numeric() && *entry != "_" {
+                    match (*entry) {
+                        "f"|"i"|"u" => {
+                            let mut annotation: String = String::new();
+
+                            let mut usize_capture_str = String::new();
+                            if *entry == "u" {
+                                let mut usize_capture = 0;
+                                while (k_count.saturating_add(usize_capture) < graphemes.len() && usize_capture < 5) {
+                                    if let Some(candidate) = graphemes.get(k_count.saturating_add(usize_capture)) {
+                                        usize_capture_str.push_str(*candidate);
+                                    }
+                                    usize_capture += 1;
+                                }
+                            }
+                            if usize_capture_str == "usize" {
+                                k_count += usize_capture_str.len();
+
+                                for _ in 0..k_count {
+                                    self.highlighting.push(Type::Number);
+                                }
+                                *index = (*index).saturating_add(k_count);
+
+                                return true;
+                            }
+                             else {
+                                let mut annotation_capture = 1;
+                                while (k_count.saturating_add(annotation_capture) < graphemes.len()) {
+                                    if let Some(entry) = graphemes.get(k_count.saturating_add(annotation_capture)) {
+                                        match (*entry).chars().next() {
+                                            Some(c) => {
+                                                if !c.is_numeric() {
+                                                    if annotation_capture <= 1 || c.is_alphabetic() || c == '_' { //handling terminating character: if at least you moved once
+                                                        return false;
+                                                    }
+                                                    break;
+                                                }
+                                            },
+                                            _ => {
+                                                return false;
+                                            }
+                                        }
+                                    }
+                                    annotation_capture += 1;
+                                }
+                                k_count = k_count.saturating_add(annotation_capture);
+
+                                for _ in 0..k_count {
+                                 self.highlighting.push(Type::Number);
+                                }
+                                *index = (*index).saturating_add(k_count);
+
+                                return true;
+                            }
+                        },
+                        "e" => {
+                            if !standard_mode {return false;}
+                            if k_count + 1 == graphemes.len() { return false; }
+
+                            k_count += 1;
+                            // INVARIANT: k_count is a valid index
+
+                            let graphemes_shift_right = &graphemes[k_count..];
+                            match graphemes_shift_right.get(0) {
+                                Some(entry) => {
+                                    match *entry {
+                                        "-" => {
+                                            let fill_width = k_count.saturating_add(1);
+
+                                            for _ in 0..fill_width {
+                                                self.highlighting.push(Type::Number);
+                                            }
+
+                                            *index = (*index).saturating_add(fill_width);
+
+                                            if !self.highlight_decimal(options, word, streak, index, false) {
+                                                let mut x = 0;
+                                                while x < fill_width {
+                                                    self.highlighting[(*index).saturating_sub(x).saturating_sub(1)] = Type::None;
+                                                    x += 1;
+                                                }
+
+                                                return false;
+                                            } else {
+                                                return true;
+                                            }
+
+                                        },
+                                        digit => {
+                                            if !digit.chars().next().unwrap_or(' ').is_ascii_digit() {
+                                                return false;
+                                            }
+                                        }
+                                    }
+                                },
+                                _ => {
+                                    return false;
+                                }
+                            }
+                        },
+                        "." => {
+                            break;
+                        }
+                        _ => {
+                            if (*entry).chars().next().unwrap_or(' ').is_ascii_alphabetic() {
+                                return false;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    k_count += 1;
+                    continue;
+                }
+            }
+        }
+
+        for _ in 0..k_count {
+            self.highlighting.push(Type::Number);
+        }
+        *index = (*index).saturating_add(k_count);
+
         true
+    }
+
+    pub fn highlight_float(
+        &mut self,
+        options: &HighlightingOptions,
+        word: &Option<String>,
+        streak: &mut HighlightStreak,
+        index: &mut usize,
+    ) -> bool {
+        let mut last_index = (*index).clone();
+        if !self.highlight_decimal(options, word, streak, index, true) {
+            return false;
+        }
+
+        let curr_str_len = self.string.graphemes(true).count();
+        let ref mut index_cpy  = (*index).clone();
+        let cloned_string = self.string.clone();
+        let mut graphemes = cloned_string.graphemes(true).skip(*index_cpy).collect::<Vec<&str>>();
+
+        if let Some(entry) = graphemes.get(0) {
+            match *entry {
+                "." => {
+                    self.highlighting.push(Type::Number);
+                    *index += 1;
+                    if !self.highlight_decimal(options, word, streak, index, true) {
+                        let mut x = 0;
+                        while (*index).saturating_sub(last_index.saturating_add(x)) > 0 {
+                            self.highlighting[(*index).saturating_sub(x).saturating_sub(1)] = Type::None;
+                            x += 1;
+                        }
+                        return false;
+                    }
+                },
+                non_number_tok => {
+                    return false;
+                },
+            }
+        }
+
+        true
+    }
+
+    pub fn highlight_octal(
+        &mut self,
+        options: &HighlightingOptions,
+        word: &Option<String>,
+        streak: &mut HighlightStreak,
+        index: &mut usize,
+    ) -> bool {
+        false
+    }
+
+    pub fn highlight_binary(
+        &mut self,
+        options: &HighlightingOptions,
+        word: &Option<String>,
+        streak: &mut HighlightStreak,
+        index: &mut usize,
+    ) -> bool {
+        false
+    }
+
+    pub fn highlight_hex(
+        &mut self,
+        options: &HighlightingOptions,
+        word: &Option<String>,
+        streak: &mut HighlightStreak,
+        index: &mut usize,
+    ) -> bool {
+        false
     }
 
     pub fn highlight_keyword(
@@ -120,7 +368,7 @@ impl Row {
                             if (!prev.trim().is_empty() && prev.is_ascii()) && *index != 0 {
                                 match prev.chars().next() {
                                     Some(c) => {
-                                        if (c.is_alphabetic() || c == '_') {
+                                        if (c.is_ascii_alphanumeric() || c == '_') {
                                             return false;
                                         }
                                     },
@@ -315,7 +563,7 @@ impl Row {
                    } else {
                        let mut back_track = 0;
                        let mut escape_pos = (*index_cpy).saturating_sub(1);
-                       while escape_pos >= 0 {
+                       loop {
                            if let Some(slash) = og_graphemes.get(escape_pos) {
                                match *slash {
                                    "\\" => {
@@ -328,6 +576,7 @@ impl Row {
                            } else {
                                break;
                            }
+                           if escape_pos == 0 { break; }
                            escape_pos -= 1;
                        }
 
@@ -497,5 +746,52 @@ impl Row {
             },
             _ => return false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_decimal_parsing() {
+        let mut new_row = Row::default();
+        new_row.string = "32___f64".to_owned();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_decimal(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index, false), true);
+        assert!(new_row.highlighting.len() == 8);
+
+        // new_row.string = "2_.5e-32___f64".to_owned();
+        // new_row.highlighting = Vec::new();
+        // let ref mut index = 0;
+        // assert_eq!(new_row.highlight_decimal(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index, false), true);
+        // assert!(new_row.highlighting.len() == 14);
+
+        new_row.string = "02.0e2__f64".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_decimal(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index, true), true);
+        assert!(new_row.highlighting.len() == 2);
+
+        new_row.string = "5e-32___f64".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_decimal(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index, true), true);
+        assert!(new_row.highlighting.len() == 11);
+
+        new_row.string = "5e32___f64".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_decimal(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index, true), true);
+        assert!(new_row.highlighting.len() == 10);
+    }
+
+    #[test]
+    fn test_float_parsing() {
+        let mut new_row = Row::default();
+        new_row.string = "2_.5e-32___x64".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_float(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index), false);
+        assert!(new_row.highlighting.len() == 6);
     }
 }
