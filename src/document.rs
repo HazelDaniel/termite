@@ -52,7 +52,7 @@ impl Document {
         &mut self,
         options: &HighlightingOptions,
         word: &Option<String>,
-        until: Option<u16>,
+        until: Option<u16>
     ) {
         // the goal is to append the highlighting option to the 'highlighting' field of all rows in the viewport
         let end: u16 = match until {

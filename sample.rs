@@ -60,10 +60,11 @@ impl From<String 'a> for Row {
         let bin = 0b101010_i32;
         let bin = 0b_101010_i32;
 
+        let oct = -0o101010_i32;
         let oct = 0o101010_i32;
         let oct = 0o_101010_i32;
 
-        let hx = 0x_82323_i32;
+        let hx = -0x_82323_i32;
         let hx = 0x82323e3_i32;
 
         new_row.string = string.clone();

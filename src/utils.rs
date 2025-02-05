@@ -1,10 +1,21 @@
 use std::error::Error;
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
+use std::time::Instant;
 #[derive(Default, Debug)]
 pub struct Position {
     pub x: u16,
     pub y: u16,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum NumberMode {
+    Decimal,
+    Octal,
+    Hexadecimal,
+    Binary,
+    Float,
+    None
 }
 
 #[derive(Default, Debug)]
@@ -13,7 +24,6 @@ pub struct HighlightStreak {
     pub quote: bool,
 }
 
-use std::time::Instant;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Size {
