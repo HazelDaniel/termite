@@ -2,7 +2,7 @@ use std::error::Error;
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 use std::time::Instant;
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct Position {
     pub x: u16,
     pub y: u16,

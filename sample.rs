@@ -161,3 +161,151 @@ world";
 fn test() {
     let x = "hello"
 }
+
+// Importing standard library features
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{self, Read};
+
+// Constants
+const MAX_SIZE: usize = 100;
+
+// Enums
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+}
+
+// Structs
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+// Tuple Struct
+struct Color(i32, i32, i32);
+
+// Traits
+trait Drawable {
+    fn draw(&self);
+}
+
+// Implementing the trait for a struct
+impl Drawable for Point {
+    fn draw(&self) {
+        println!("Drawing point at ({}, {})", self.x, self.y);
+    }
+}
+
+// Generic function
+fn add<T: std::ops::Add<Output = T>>(a: T, b: T) -> T {
+    a + b
+}
+
+// Function with multiple return types using Result
+fn read_file_content(filename: &str) -> Result<String, io::Error> {
+    let mut file = File::open(filename)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    Ok(contents)
+}
+
+// Using async/await
+async fn fetch_data() -> String {
+    "Fetched Data".to_string()
+}
+
+// Main function
+fn main() {
+    // Mutable and immutable variables
+    let name = "Rust";
+    let mut counter = 0;
+
+    // Integer and floating point types
+    let x: i32 = 42;
+    let y: f64 = 3.14;
+
+    // Boolean
+    let is_active: bool = true;
+
+    // Arrays and slices
+    let arr = [1, 2, 3, 4, 5];
+    let slice = &arr[1..3];
+
+    // Vectors
+    let mut vec = vec![1, 2, 3];
+    vec.push(4);
+
+    // HashMap
+    let mut map = HashMap::new();
+    map.insert("one", 1);
+    map.insert("two", 2);
+
+    // String
+    let s1 = String::from("Hello");
+    let s2 = "World".to_string();
+    let s3 = format!("{}, {}", s1, s2);
+
+    // If-else
+    if x > 10 {
+        println!("x is greater than 10");
+    } else {
+        println!("x is not greater than 10");
+    }
+
+    // Match expression
+    let msg = Message::Move { x: 10, y: 20 };
+    match msg {
+        Message::Quit => println!("Quit"),
+        Message::Move { x, y } => println!("Move to ({}, {})", x, y),
+        Message::Write(text) => println!("Write: {}", text),
+    }
+
+    // Loop constructs
+    let mut i = 0;
+    while i < 5 {
+        println!("while loop: {}", i);
+        i += 1;
+    }
+
+    for num in arr.iter() {
+        println!("for loop: {}", num);
+    }
+
+    let mut j = 0;
+    loop {
+        if j >= 3 {
+            break;
+        }
+        println!("loop: {}", j);
+        j += 1;
+    }
+
+    // Closures
+    let add_one = |num: i32| num + 1;
+    println!("Closure result: {}", add_one(10));
+
+    // Using a struct
+    let p = Point { x: 5, y: 10 };
+    p.draw();
+
+    // Using a tuple struct
+    let red = Color(255, 0, 0);
+    println!("Tuple struct Color: ({}, {}, {})", red.0, red.1, red.2);
+
+    // Calling async function
+    let future = fetch_data();
+    let data = futures::executor::block_on(future);
+    println!("Async function result: {}", data);
+
+    // Using macros
+    println!("The max size is: {}", MAX_SIZE);
+
+    // Using Result for error handling
+    match read_file_content("example.txt") {
+        Ok(content) => println!("File content: {}", content),
+        Err(e) => println!("Error reading file: {}", e),
+    }
+}
+

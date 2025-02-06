@@ -1,6 +1,6 @@
 use crate::filetype::FileType;
 use crate::row::Row;
-use crate::utils::{HighlightStreak, HighlightingOptions};
+use crate::utils::{HighlightStreak, HighlightingOptions, Position};
 
 use std::env;
 use std::fs;

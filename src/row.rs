@@ -99,7 +99,8 @@ impl Row {
         || self.highlight_decimal(options, word, streak, index, NumberMode::None)
         || self.highlight_octal(options, word, streak, index)
         || self.highlight_binary(options, word, streak, index)
-        // || self.highlight_hex(options, word, streak, index)
+        || self.highlight_hex(options, word, streak, index)
+        // false
     }
 
     pub fn highlight_decimal(
@@ -131,6 +132,9 @@ impl Row {
                                         },
                                         NumberMode::Binary => {
                                             if c != '_' && c != 'b'  { return false; }
+                                        },
+                                        NumberMode::Hexadecimal => {
+                                            if c != '_' && c != 'x'  { return false; }
                                         },
                                         _ => {
                                             if (c.is_ascii_alphanumeric() || c == '_') { return false; }
@@ -214,7 +218,7 @@ impl Row {
                             }
                         },
                         "e" => {
-                            if mode != NumberMode::Float {return false;}
+                            if mode != NumberMode::Float && mode != NumberMode::Hexadecimal {return false;}
                             if k_count + 1 == graphemes.len() { return false; }
 
                             k_count += 1;
@@ -306,12 +310,13 @@ impl Row {
                 "." => {
                     self.highlighting.push(Type::Number);
                     *index += 1;
-                    if !self.highlight_decimal(options, word, streak, index,  NumberMode::Float) {
-                        let mut x = 0;
-                        while (*index).saturating_sub(last_index.saturating_add(x)) > 0 {
+                    if !self.highlight_decimal(options, word, streak, index, NumberMode::Float) {
+                        let delta = (*index).saturating_sub(last_index);
+                        let mut x = delta;
+                        for _ in 0..x {
                             self.highlighting.pop();
-                            x += 1;
                         }
+                        *index -= delta;
                         return false;
                     }
                 },
@@ -383,7 +388,10 @@ impl Row {
         let mut last_index = (*index).clone();
 
         if let Some(specifier) = graphemes.get(1) {
-            if (mode == NumberMode::Binary && (*specifier) != "b") || (mode == NumberMode::Octal && (*specifier) != "o") {
+            if (mode == NumberMode::Binary && (*specifier) != "b")
+                || (mode == NumberMode::Octal && (*specifier) != "o")
+                || (mode == NumberMode::Hexadecimal && (*specifier) != "x")
+            {
                 return false;
             }
             let mut underscore_index = 2;
@@ -453,7 +461,7 @@ impl Row {
         streak: &mut HighlightStreak,
         index: &mut usize,
     ) -> bool {
-        false
+        self.highlight_o_or_b_number(options, word, streak, index, NumberMode::Hexadecimal)
     }
 
     pub fn highlight_keyword(
@@ -978,4 +986,50 @@ mod tests {
         assert_eq!(new_row.highlight_binary(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index), true);
         assert!(new_row.highlighting.len() == 15);
     }
+
+    #[test]
+    fn test_hex_parsing() {
+        let mut new_row = Row::default();
+        new_row.string = "0".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_hex(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index), true);
+        assert!(new_row.highlighting.len() == 1);
+
+        new_row.string = "0x_101010_x32".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_hex(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index), false);
+        assert!(new_row.highlighting.len() == 0);
+
+        new_row.string = "0x2;".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_hex(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index), true);
+        assert!(new_row.highlighting.len() == 3);
+
+        new_row.string = "0x701010_i32;".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_hex(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index), true);
+        assert!(new_row.highlighting.len() == 12);
+
+        new_row.string = " 0x_801010_i32;".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 1;
+        assert_eq!(new_row.highlight_hex(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index), true);
+        assert!(new_row.highlighting.len() == 13);
+
+        new_row.string = "0x___10e1010_i32".to_owned();
+        new_row.highlighting = Vec::new();
+        let ref mut index = 0;
+        assert_eq!(new_row.highlight_hex(&HighlightingOptions::default(), &None, &mut HighlightStreak::default(), index), true);
+        assert!(new_row.highlighting.len() == 16);
+    }
+
+
+    // let hx = 0x_82323_i32;
+    // let hx = 0x82323e3_i32;
+    // let hx = 0x____82323e3_i32;
+
 }

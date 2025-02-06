@@ -3,6 +3,7 @@ use std::io::{stdin, stdout, Read, Stdout, Write};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
+use chrono::{Local, Timelike};
 
 use crate::config::{DEFAULT_QUIT_TIMES, EDITOR_NAME, PACKAGE_VERSION};
 use crate::document::Document;
@@ -83,9 +84,10 @@ impl Editor {
         self.document.highlight(
             &HighlightingOptions::default(),
             &self.highlighted_word,
-            Some(offset_y.saturating_add(height)),
+            Some(offset_y.saturating_add(height))
         );
         self.draw_rows();
+        self.draw_status_bar();
 
         self.move_cursor(Position {
             x: self.cursor_position.x.saturating_sub(offset_x),
@@ -263,6 +265,8 @@ impl Editor {
     pub fn draw_rows(&self) {
         let Size { height, width } = self.terminal.get_size();
 
+        print!("{}", termion::color::Bg(termion::color::Black));
+
         for y in 0..height {
             self.terminal.clear_current_line();
             if let Some(row) = self
@@ -281,6 +285,8 @@ impl Editor {
                 }
             }
         }
+
+        print!("{}", termion::color::Bg(termion::color::Reset));
     }
 
     pub fn draw_row(&self, row: &Row, width: u16) {
@@ -311,5 +317,25 @@ impl Editor {
         } else if x >= offset_x.saturating_add(width) {
             self.offset.x = x.saturating_sub(width).saturating_add(1);
         }
+    }
+
+    pub fn draw_status_bar(&mut self) -> Result<(), io::Error> {
+        let Size { width, height } = self.terminal.get_size();
+        let Position { y, ..} = self.cursor_position;
+        let now = Local::now();
+        let status_message: String = format!("{:02}:{:02} | {}/{} lines", now.hour(), now.minute(), y.saturating_add(1), self.document.rows.len());
+        let message_len = status_message.len();
+        let width_diff = width - message_len as u16;
+
+        let rest_pad = " ".repeat(width_diff as usize);
+
+
+        print!("{}", termion::color::Bg(termion::color::LightWhite));
+        print!("{}", termion::color::Fg(termion::color::LightBlack));
+        print!("{}{}\r", status_message, rest_pad);
+        print!("{}", termion::color::Fg(termion::color::Reset));
+        print!("{}", termion::color::Bg(termion::color::Reset));
+
+        Ok(())
     }
 }

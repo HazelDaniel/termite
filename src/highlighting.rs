@@ -23,7 +23,7 @@ impl Type {
             Type::PrimaryKeyword => color::Rgb(183, 65, 14),
             Type::SecondaryKeyword => color::Rgb(212, 220, 160),
             Type::KnownItem => color::Rgb(42, 161, 192),
-            _ => color::Rgb(255, 255, 255),
+            _ => color::Rgb(240, 240, 250),
         }
     }
 }
