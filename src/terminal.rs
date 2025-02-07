@@ -26,7 +26,7 @@ impl Default for Terminal {
             _stdout: stdout,
             size: Size {
                 width,
-                height: height.saturating_sub(1),
+                height: height.saturating_sub(2),
             },
         }
     }
@@ -43,6 +43,24 @@ impl Terminal {
 
     pub fn goto(&self, dest: Position) {
         let Position { x, y } = dest;
+        // let Size {height, width} = self.get_size();
+
+        // print!(
+        //     "{}",
+        //     termion::cursor::Goto((1), y.saturating_add(1))
+        // );
+        // print!(
+        //     "{}",
+        //     termion::color::Bg(termion::color::LightWhite),
+        // );
+        // print!(
+        //     "{}",
+        //     termion::cursor::Goto((1), width)
+        // );
+        // print!(
+        //     "{}",
+        //     termion::color::Bg(termion::color::Reset),
+        // );
         print!(
             "{}",
             termion::cursor::Goto(x.saturating_add(1), y.saturating_add(1))

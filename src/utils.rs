@@ -2,10 +2,27 @@ use std::error::Error;
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 use std::time::Instant;
+
 #[derive(Default, Debug, Copy, Clone)]
 pub struct Position {
     pub x: u16,
     pub y: u16,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ScrollDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+    None
+}
+
+#[derive(Debug, Default)]
+pub struct Selection {
+    pub position:       Position,
+    pub start:          (u16, u16),
+    pub end:            (u16, u16), // range is: [start, end]
 }
 
 #[derive(Debug, PartialEq)]
@@ -20,15 +37,15 @@ pub enum NumberMode {
 
 #[derive(Default, Debug)]
 pub struct HighlightStreak {
-    pub comment: u16,
-    pub quote: bool,
+    pub comment:    u16,
+    pub quote:      bool,
 }
 
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Size {
-    pub width: u16,
-    pub height: u16,
+    pub width:      u16,
+    pub height:     u16,
 }
 
 #[derive(Default, Debug)]
@@ -37,14 +54,14 @@ pub struct MovementData {
 }
 
 pub struct HighlightingOptions {
-    pub numbers: bool,
-    pub strings: bool,
-    pub characters: bool,
-    pub comments: bool,
-    pub multiline_comments: bool,
-    pub primary_keywords: HashSet<String>,
-    pub secondary_keywords: HashSet<String>,
-    pub known_items: HashSet<String>,
+    pub numbers:                        bool,
+    pub strings:                        bool,
+    pub characters:                     bool,
+    pub comments:                       bool,
+    pub multiline_comments:             bool,
+    pub primary_keywords:               HashSet<String>,
+    pub secondary_keywords:             HashSet<String>,
+    pub known_items:                    HashSet<String>,
 }
 
 impl Default for HighlightingOptions {
@@ -125,13 +142,13 @@ impl Default for HighlightingOptions {
                 "f32".to_string(),
                 "f64".to_string(),
             ]),
-            known_items: HashSet::from(["String".to_string(), "Ok".to_string(), "Err".to_string(), "Some".to_string(), "None".to_string(), "Vec".to_string(), "Option".to_string()])
+            known_items: HashSet::from(["String".to_string(), "Ok".to_string(), "Err".to_string(), "Some".to_string(), "None".to_string(), "Vec".to_string(), "Option".to_string(), "Result".to_string()])
         }
     }
 }
 pub struct StatusMessage {
-    pub text: String,
-    pub time: Instant,
+    pub text:       String,
+    pub time:       Instant,
 }
 
 impl StatusMessage {
@@ -161,12 +178,3 @@ pub fn find_grapheme_index(haystack: &str, offset: usize, needle: &str) -> Optio
         .windows(needle_graphemes.len()) // Create sliding windows of the needle's length
         .position(|window| window == needle_graphemes.as_slice()) // Find first occurrence
 }
-
-// pub fn fuzzy_find_grapheme_index(haystack: &str, offset: usize, needle: &str) -> Option<usize> {
-//     let haystack_graphemes: Vec<&str> = haystack.graphemes(true).skip(offset).collect();
-//     let needle_graphemes: Vec<&str> = needle.graphemes(true).collect();
-//
-//     haystack_graphemes
-//         .windows(needle_graphemes.len()) // Create sliding windows of the needle's length
-//         .position(|window| window == needle_graphemes.as_slice()) // Find first occurrence
-// }

@@ -4,14 +4,13 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 use chrono::{Local, Timelike};
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::config::{DEFAULT_QUIT_TIMES, EDITOR_NAME, PACKAGE_VERSION};
 use crate::document::Document;
 use crate::row::Row;
 use crate::terminal::Terminal;
-use crate::utils::{
-    die, HighlightingOptions, MovementData, Position, Size, StatusMessage, TerminalMode,
-};
+use crate::utils::{die, HighlightingOptions, MovementData, Position, Size, StatusMessage, TerminalMode, ScrollDirection, Selection};
 
 pub struct Editor {
     should_quit: bool,
@@ -24,6 +23,7 @@ pub struct Editor {
     highlighted_word: Option<String>,
     mode: TerminalMode,
     movement_data: MovementData,
+    selection: Option<Selection>
 }
 
 impl Default for Editor {
@@ -39,6 +39,7 @@ impl Default for Editor {
             status_message: None,
             mode: TerminalMode::Normal,
             movement_data: MovementData::default(),
+            selection: None
         }
     }
 }
@@ -171,6 +172,10 @@ impl Editor {
                         }
                         self.cursor_position.y = self.cursor_position.y.saturating_add(1);
                     }
+
+                    self.update_selection();
+                    self.scroll(ScrollDirection::Down);
+                    return Ok(())
                 }
                 Key::Char('h') => {
                     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
@@ -253,7 +258,8 @@ impl Editor {
                 _ => print!("random key pressed!"),
             }
         }
-        self.scroll();
+        self.update_selection();
+        self.scroll(ScrollDirection::None);
 
         Ok(())
     }
@@ -264,6 +270,7 @@ impl Editor {
 
     pub fn draw_rows(&self) {
         let Size { height, width } = self.terminal.get_size();
+        let Position {x: pos_x, y: pos_y} = self.cursor_position;
 
         print!("{}", termion::color::Bg(termion::color::Black));
 
@@ -274,15 +281,37 @@ impl Editor {
                 .rows
                 .get(self.offset.y.saturating_add(y) as usize)
             {
+                if y == pos_y.saturating_sub(self.offset.y) {
+                    print!("{}", termion::color::Bg(termion::color::Rgb(228, 228, 228)));
+                    print!("{}" , termion::color::Bg(termion::color::Reset));
+                } else {
+                    print!("{}" , termion::color::Bg(termion::color::Black));
+                }
                 self.draw_row(row, width);
+                if y == pos_y.saturating_sub(self.offset.y) {
+                    let right_pad_len = if width.saturating_add(self.offset.x) > row.len as u16 {
+                        (width.saturating_add(self.offset.x) as i32).saturating_sub(row.len as i32).abs() as usize
+                    } else {
+                        (width.saturating_sub(row.len as u16) as i32).abs() as usize
+                    };
+                    print!("{}\n\r", " ".repeat(right_pad_len));
+                } else {
+                    print!("\n\r");
+                }
+
+                if y == pos_y.saturating_sub(self.offset.y) {
+                    print!("{}", termion::color::Bg(termion::color::Black));
+                }
             } else if y == height / 3 {
                 self.display_welcome_message();
+                return;
             } else {
                 if y == 1 {
                     print!("\n\r");
                 } else {
                     print!("~\n\r");
                 }
+                return;
             }
         }
 
@@ -292,13 +321,10 @@ impl Editor {
     pub fn draw_row(&self, row: &Row, width: u16) {
         if (!row.string.is_empty()) {
             row.render(self.offset.x, self.offset.x.saturating_add(width));
-            print!("{}", "\n\r");
-        } else {
-            print!("{}", "\n\r");
         }
     }
 
-    pub fn scroll(&mut self) {
+    pub fn scroll(&mut self, intention: ScrollDirection) {
         let Size { height, width } = self.terminal.get_size();
         let Position { x, y } = self.cursor_position;
         let Position {
@@ -320,22 +346,58 @@ impl Editor {
     }
 
     pub fn draw_status_bar(&mut self) -> Result<(), io::Error> {
+        let mut rendered_width: usize = 0;
         let Size { width, height } = self.terminal.get_size();
         let Position { y, ..} = self.cursor_position;
         let now = Local::now();
-        let status_message: String = format!("{:02}:{:02} | {}/{} lines", now.hour(), now.minute(), y.saturating_add(1), self.document.rows.len());
-        let message_len = status_message.len();
-        let width_diff = width - message_len as u16;
-
-        let rest_pad = " ".repeat(width_diff as usize);
+        let circled_dot = format!("{}", " ⊙ ");
 
 
-        print!("{}", termion::color::Bg(termion::color::LightWhite));
-        print!("{}", termion::color::Fg(termion::color::LightBlack));
-        print!("{}{}\r", status_message, rest_pad);
+        print!("{}", termion::color::Fg(termion::color::White));
+        print!("{}", termion::color::Bg(termion::color::AnsiValue(0)));
+        print!("{}", circled_dot);
         print!("{}", termion::color::Fg(termion::color::Reset));
         print!("{}", termion::color::Bg(termion::color::Reset));
 
+        rendered_width = rendered_width.saturating_add(circled_dot.graphemes(true).count());
+
+        let mut progress = format!("{}%", ((y.saturating_add(1) as f64 / (self.document.rows.len() as f64)) * 100_f64).ceil());
+        progress.push_str("  ");
+        progress.truncate(4);
+
+        let mut time_bar = format!(" {:02}:{:02} ", now.hour(), now.minute());
+        rendered_width  = rendered_width.saturating_add(time_bar.graphemes(true).count());
+
+        let status_message: String = format!(" {0}/{1} ", progress, self.document.rows.len());
+        rendered_width  = rendered_width.saturating_add(status_message.graphemes(true).count());
+
+        let width_diff = width.saturating_sub(rendered_width as u16);
+        let space_pad = " ".repeat(width_diff as usize);
+
+        print!("{}", termion::color::Bg(termion::color::LightWhite));
+        print!("{}", termion::color::Fg(termion::color::LightBlack));
+        print!("{}", space_pad);
+        print!("{}", termion::color::Fg(termion::color::Reset));
+        print!("{}", termion::color::Bg(termion::color::Reset));
+
+        print!("{}", termion::color::Bg(termion::color::Rgb(124, 120, 127)));
+        print!("{}", termion::color::Fg(termion::color::Rgb(244, 240, 247)));
+        print!("{}", status_message);
+        print!("{}", termion::color::Fg(termion::color::Reset));
+        print!("{}", termion::color::Bg(termion::color::Reset));
+
+        print!("{}", termion::color::Fg(termion::color::LightWhite));
+        print!("{}", termion::color::Bg(termion::color::Rgb(44, 40, 27)));
+        print!("{}", time_bar);
+        print!("{}", termion::color::Bg(termion::color::Reset));
+
+        print!("\r");
+
         Ok(())
     }
+
+    fn update_selection(&mut self) -> Result<(), io::Error> {
+        Ok(())
+    }
+
 }

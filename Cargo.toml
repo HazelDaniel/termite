@@ -7,8 +7,13 @@ edition = "2021"
 chrono = "0.4.39"
 serde = "1.0.217"
 termion = "4.0.3"
+tokio = "1.43.0"
 unicode-segmentation = "1.12.0"
 
 [[bin]]
 name = "graph"
 path = "./test.rs"
+
+[[bin]]
+name = "tokio"
+path = "./test2.rs"
