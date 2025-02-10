@@ -2,6 +2,15 @@ use std::error::Error;
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 use std::time::Instant;
+use std::fs::OpenOptions;
+use tokio::io::AsyncWriteExt;
+use std::sync::{Arc, Mutex};
+use std::collections::VecDeque;
+use std::io::{ErrorKind, Write};
+use chrono::format::Item::{Error as ChronoError};
+use tokio::io;
+use tokio::task::JoinHandle;
+use once_cell::sync::OnceCell;
 
 #[derive(Default, Debug, Copy, Clone)]
 pub struct Position {
@@ -159,6 +168,48 @@ impl StatusMessage {
         }
     }
 }
+
+
+pub struct OrderedLogger {
+    pub file:       Arc<Mutex<std::fs::File>>,
+}
+
+impl OrderedLogger {
+    pub fn new(file: &str) -> Result<OrderedLogger, io::Error> {
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(file).map_err(|e| io::Error::new(ErrorKind::Other, "failed to open file for logging!"))?;
+
+        Ok(OrderedLogger{
+            file: Arc::new(Mutex::new(file)),
+        })
+    }
+
+    pub fn log(&self, message: &str) -> Result<(), io::Error> {
+        let mut file = self.file.lock().expect("couldn't acquire lock on file for logging");
+        writeln!(*file, "{}", message).expect("Could not write to file");
+        file.flush()?;
+
+        Ok(())
+    }
+}
+
+pub static LOGGER: OnceCell<OrderedLogger> = OnceCell::new();
+
+#[macro_export]
+macro_rules! log {
+    ($($arg: tt)*) => {
+        {
+            let log_message = format!($($arg)*);
+            let logger = $crate::LOGGER.get().expect("Logger not initialized");
+            &logger.log(&log_message).unwrap();
+        }
+    }
+}
+
+
 
 #[derive(PartialEq)]
 pub enum TerminalMode {

@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::future::Future;
 use std::io;
 use std::io::{stdin, stdout, Read, Stdout, Write};
 use termion::event::Key;
@@ -5,9 +7,12 @@ use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 use chrono::{Local, Timelike};
 use unicode_segmentation::UnicodeSegmentation;
-
+use std::rc::{Rc};
+use std::sync::{Arc, Mutex, MutexGuard};
+use once_cell::sync::OnceCell;
 use crate::config::{DEFAULT_QUIT_TIMES, EDITOR_NAME, PACKAGE_VERSION};
 use crate::document::Document;
+use crate::log;
 use crate::row::Row;
 use crate::terminal::Terminal;
 use crate::utils::{die, HighlightingOptions, MovementData, Position, Size, StatusMessage, TerminalMode, ScrollDirection, Selection};
@@ -23,11 +28,13 @@ pub struct Editor {
     highlighted_word: Option<String>,
     mode: TerminalMode,
     movement_data: MovementData,
-    selection: Option<Selection>
+    selection: Option<Selection>,
 }
 
+
 impl Default for Editor {
-    fn default() -> Self {
+    fn default() -> Editor {
+
         Self {
             offset: Position::default(),
             cursor_position: Position::default(),
@@ -39,13 +46,13 @@ impl Default for Editor {
             status_message: None,
             mode: TerminalMode::Normal,
             movement_data: MovementData::default(),
-            selection: None
+            selection: None,
         }
     }
 }
 
 impl Editor {
-    pub fn run(&mut self) -> Result<(), io::Error> {
+    pub async fn run(&mut self) -> Result<(), io::Error> {
         let mut terminal = self.terminal.get_std_buffer();
         let Size { width, height } = self.terminal.get_size();
         self.document.load();
@@ -62,7 +69,7 @@ impl Editor {
                 return Ok(());
             }
 
-            match self.process_keys() {
+            match self.process_keys().await {
                 Ok(res) => {}
                 Err(error) => die(error),
             }
@@ -82,11 +89,11 @@ impl Editor {
             return Ok(());
         }
 
-        self.document.highlight(
-            &HighlightingOptions::default(),
-            &self.highlighted_word,
-            Some(offset_y.saturating_add(height))
-        );
+        // self.document.highlight(
+        //     &HighlightingOptions::default(),
+        //     &self.highlighted_word,
+        //     Some(offset_y.saturating_add(height))
+        // );
         self.draw_rows();
         self.draw_status_bar();
 
@@ -121,15 +128,15 @@ impl Editor {
         Ok(())
     }
 
-    pub fn process_keys(&mut self) -> Result<(), io::Error> {
+    pub async fn process_keys(&mut self) -> Result<(), io::Error> {
         if self.mode == TerminalMode::Normal {
-            self.process_normal_mode()?;
+            self.process_normal_mode().await?;
         }
 
         Ok(())
     }
 
-    pub fn process_normal_mode(&mut self) -> Result<(), io::Error> {
+    pub async fn process_normal_mode(&mut self) -> Result<(), io::Error> {
         let Size { height, .. } = self.terminal.get_size();
 
         if let Some(key) = stdin().keys().next() {
@@ -250,9 +257,11 @@ impl Editor {
                             // switch to insert mode
                         }
                     } else {
-                        print!("{}", x);
+                        log!("{}", format!(" pressed: {}", x));
+
+                        // print!("{}", x);
                     }
-                }
+                },
                 Key::Ctrl('q') => self.should_quit = true,
                 Key::Up | Key::Down | Key::Left | Key::Right => {}
                 _ => print!("random key pressed!"),
@@ -399,5 +408,4 @@ impl Editor {
     fn update_selection(&mut self) -> Result<(), io::Error> {
         Ok(())
     }
-
 }

@@ -1,4 +1,5 @@
 target
+resources
 .idea
 demo*
 demo.gif
@@ -6,3 +7,5 @@ test.rs
 TODO.txt
 logic
 test*.rs
+big-file.txt
+log.txt
