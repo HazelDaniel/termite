@@ -4,8 +4,8 @@ use std::io::Write;
 use termion::raw::{IntoRawMode, RawTerminal};
 
 pub struct Terminal {
-    size: Size,
-    _stdout: RawTerminal<std::io::Stdout>,
+    size:               Size,
+    _stdout:            RawTerminal<std::io::Stdout>,
 }
 
 impl From<(u16, u16)> for Size {
@@ -43,24 +43,6 @@ impl Terminal {
 
     pub fn goto(&self, dest: Position) {
         let Position { x, y } = dest;
-        // let Size {height, width} = self.get_size();
-
-        // print!(
-        //     "{}",
-        //     termion::cursor::Goto((1), y.saturating_add(1))
-        // );
-        // print!(
-        //     "{}",
-        //     termion::color::Bg(termion::color::LightWhite),
-        // );
-        // print!(
-        //     "{}",
-        //     termion::cursor::Goto((1), width)
-        // );
-        // print!(
-        //     "{}",
-        //     termion::color::Bg(termion::color::Reset),
-        // );
         print!(
             "{}",
             termion::cursor::Goto(x.saturating_add(1), y.saturating_add(1))
@@ -81,6 +63,14 @@ impl Terminal {
 
     pub fn cursor_show(&self) {
         print!("{}{}", termion::cursor::Show, termion::cursor::SteadyBlock);
+    }
+
+    pub fn save_cursor(&mut self) {
+        print!("{}", termion::cursor::Save);
+    }
+
+    pub fn restore_cursor(&mut self) {
+        print!("{}", termion::cursor::Restore);
     }
 
     pub fn flush(&mut self) -> Result<(), std::io::Error> {

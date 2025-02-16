@@ -27,6 +27,18 @@ pub enum ScrollDirection {
     None
 }
 
+#[derive(Debug, PartialEq)]
+pub enum EditorMode {
+    Visual,
+    Normal,
+    Insert,
+    Replace,
+    Search,
+    LineScan,
+    G,
+    Z
+}
+
 #[derive(Debug, Default)]
 pub struct Selection {
     pub position:       Position,
