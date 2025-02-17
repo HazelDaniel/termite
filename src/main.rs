@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+mod automata;
 mod config;
 mod document;
 mod editor;
@@ -9,16 +10,20 @@ mod row;
 mod terminal;
 mod utils;
 
+
 use editor::Editor;
 use std::env;
 use std::io;
 use once_cell::sync::OnceCell;
 use tokio;
+use crate::automata::EditorFSM;
 use crate::utils::{OrderedLogger, LOGGER};
 
 
 #[tokio::main]
 async fn main() -> Result<(), io::Error> {
+    let mut FSM: EditorFSM = EditorFSM::new();
+
     let args: Vec<String> = env::args().collect();
     let mut log_flag_idx = 0_i16;
     let arg_size = args.len();
@@ -38,6 +43,6 @@ async fn main() -> Result<(), io::Error> {
     };
 
 
-    editor.run().await?;
+    editor.run(&mut FSM).await?;
     Ok(())
 }

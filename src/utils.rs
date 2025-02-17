@@ -6,11 +6,93 @@ use std::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
-use std::io::{ErrorKind, Write};
+use std::io;
+use std::io::{stdin, ErrorKind, Write};
 use chrono::format::Item::{Error as ChronoError};
-use tokio::io;
 use tokio::task::JoinHandle;
 use once_cell::sync::OnceCell;
+use termion::event::Key;
+
+pub enum PromptCallbackCode {
+    Success,
+    Failure,
+    Continue
+}
+pub struct FSMActionQueue {
+    pub actions:            Vec<FSMAction>
+}
+
+pub struct FSMAction {
+    pub index:                  usize,
+    pub count:                  usize,
+    pub payload:                Option<Position>
+}
+
+pub trait Promptable {
+    fn on_prompt_loop_start(&mut self, prompt: &str) -> Result<(), std::io::Error> {
+        Ok(())
+    }
+    fn prompt<C>(&mut self, mut callback: C, prompt: Option<String>) -> Result<Option<String>, std::io::Error>
+    where C: FnMut(&mut Self, Key) {
+        use std::io::{Stdin, Write, stdin};
+        use termion::input::TermRead;
+
+
+        let mut result = String::new();
+        loop {
+            self.on_prompt_loop_start(&result);
+
+            match stdin().keys().next().unwrap_or(Err(io::Error::new(ErrorKind::InvalidInput, "")))? {
+                Key::Backspace => {
+                    result.pop();
+                },
+                Key::Char('\n') => {
+                    callback(self, Key::Char('\n'));
+                    break;
+                },
+                Key::Char(x) => {
+                    if !(x.is_control()) {
+                        callback(self, Key::Char(x));
+                        result.push(x);
+                    }
+                },
+                Key::Esc => {
+                    result.truncate(0);
+                    break;
+                },
+                _ => ()
+            }
+
+        }
+
+        if result.is_empty() { return Ok(None); }
+
+        Ok(Some(result))
+    }
+
+    fn prompt_exec<C>(&mut self, mut callback: C, prompt: Option<String>) -> Result<(), std::io::Error>
+    where C: FnMut(&mut Self, Key) -> PromptCallbackCode {
+        use std::io::{Stdin, Write, stdin};
+        use termion::input::TermRead;
+
+        loop {
+            match stdin().keys().next().unwrap_or(Err(io::Error::new(ErrorKind::InvalidInput, "")))? {
+                Key::Esc => {
+                    return Ok(())
+                },
+                k => {
+                    match callback(self, k) {
+                        PromptCallbackCode::Success | PromptCallbackCode::Failure => {
+                            return Ok(())
+                        },
+                        PromptCallbackCode::Continue => ()
+                    }
+                },
+            }
+
+        }
+    }
+}
 
 #[derive(Default, Debug, Copy, Clone)]
 pub struct Position {
@@ -25,18 +107,6 @@ pub enum ScrollDirection {
     Left,
     Right,
     None
-}
-
-#[derive(Debug, PartialEq)]
-pub enum EditorMode {
-    Visual,
-    Normal,
-    Insert,
-    Replace,
-    Search,
-    LineScan,
-    G,
-    Z
 }
 
 #[derive(Debug, Default)]
@@ -61,7 +131,6 @@ pub struct HighlightStreak {
     pub comment:    u16,
     pub quote:      bool,
 }
-
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Size {
@@ -181,25 +250,24 @@ impl StatusMessage {
     }
 }
 
-
 pub struct OrderedLogger {
     pub file:       Arc<Mutex<std::fs::File>>,
 }
 
 impl OrderedLogger {
-    pub fn new(file: &str) -> Result<OrderedLogger, io::Error> {
+    pub fn new(file: &str) -> Result<OrderedLogger, std::io::Error> {
         let file = OpenOptions::new()
             .create(true)
             .write(true)
             .append(true)
-            .open(file).map_err(|e| io::Error::new(ErrorKind::Other, "failed to open file for logging!"))?;
+            .open(file).map_err(|e| std::io::Error::new(ErrorKind::Other, "failed to open file for logging!"))?;
 
         Ok(OrderedLogger{
             file: Arc::new(Mutex::new(file)),
         })
     }
 
-    pub fn log(&self, message: &str) -> Result<(), io::Error> {
+    pub fn log(&self, message: &str) -> Result<(), std::io::Error> {
         let mut file = self.file.lock().expect("couldn't acquire lock on file for logging");
         writeln!(*file, "{}", message).expect("Could not write to file");
         file.flush()?;

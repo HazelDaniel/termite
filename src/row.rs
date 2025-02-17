@@ -6,10 +6,10 @@ use crate::utils::{find_grapheme_index, HighlightStreak, HighlightingOptions, Po
 use unicode_segmentation::UnicodeSegmentation;
 
 pub struct Row {
-    pub string: String,
-    highlighting: Vec<Type>,
+    pub string:         String,
+    highlighting:       Vec<Type>,
     pub is_highlighted: bool,
-    pub len: usize,
+    pub len:            usize,
 }
 
 impl Default for Row {

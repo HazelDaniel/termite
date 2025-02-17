@@ -9,12 +9,12 @@ use std::time::Duration;
 use unicode_segmentation;
 
 pub struct Document {
-    pub rows: Vec<Row>,
-    pub file_name: String,
-    pub is_loaded: bool,
-    pub dirty: bool,
-    pub file_type: FileType,
-    pub hl_streak: HighlightStreak,
+    pub rows:           Vec<Row>,
+    pub file_name:      String,
+    pub is_loaded:      bool,
+    pub dirty:          bool,
+    pub file_type:      FileType,
+    pub hl_streak:      HighlightStreak,
 }
 
 impl Default for Document {

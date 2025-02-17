@@ -10,25 +10,26 @@ use unicode_segmentation::UnicodeSegmentation;
 use std::rc::{Rc};
 use std::sync::{Arc, Mutex, MutexGuard};
 use once_cell::sync::OnceCell;
+use crate::automata::EditorFSM;
 use crate::config::{DEFAULT_QUIT_TIMES, EDITOR_NAME, PACKAGE_VERSION};
 use crate::document::Document;
 use crate::log;
 use crate::row::Row;
 use crate::terminal::Terminal;
-use crate::utils::{die, HighlightingOptions, MovementData, Position, Size, StatusMessage, TerminalMode, ScrollDirection, Selection};
+use crate::utils::{die, HighlightingOptions, MovementData, Position, Size, StatusMessage, TerminalMode, ScrollDirection, Selection, Promptable};
 
 pub struct Editor {
-    should_quit:                bool,
-    terminal:                   Terminal,
-    cursor_position:            Position,
-    offset:                     Position,
-    document:                   Document,
-    status_message:             Option<StatusMessage>,
-    quit_times:                 u8,
-    highlighted_word:           Option<String>,
-    mode:                       TerminalMode,
-    movement_data:              MovementData,
-    selection:                  Option<Selection>,
+    pub should_quit:                bool,
+    pub terminal:                   Terminal,
+    pub cursor_position:            Position,
+    pub offset:                     Position,
+    pub document:                   Document,
+    pub status_message:             Option<StatusMessage>,
+    pub quit_times:                 u8,
+    pub highlighted_word:           Option<String>,
+    pub mode:                       TerminalMode,
+    pub movement_data:              MovementData,
+    pub selection:                  Option<Selection>
 }
 
 
@@ -52,7 +53,7 @@ impl Default for Editor {
 }
 
 impl Editor {
-    pub async fn run(&mut self) -> Result<(), io::Error> {
+    pub async fn run(&mut self, fsm: &mut EditorFSM) -> Result<(), io::Error> {
         let mut terminal = self.terminal.get_std_buffer();
         let Size { width, height } = self.terminal.get_size();
         self.document.load();
@@ -69,7 +70,7 @@ impl Editor {
                 return Ok(());
             }
 
-            match self.process_keys().await {
+            match self.process_keys(fsm).await {
                 Ok(res) => {}
                 Err(error) => die(error),
             }
@@ -130,15 +131,15 @@ impl Editor {
         Ok(())
     }
 
-    pub async fn process_keys(&mut self) -> Result<(), io::Error> {
+    pub async fn process_keys(&mut self, fsm: &mut EditorFSM) -> Result<(), io::Error> {
         if self.mode == TerminalMode::Normal {
-            self.process_normal_mode().await?;
+            self.process_normal_mode(fsm).await?;
         }
 
         Ok(())
     }
 
-    pub async fn process_normal_mode(&mut self) -> Result<(), io::Error> {
+    pub async fn process_normal_mode(&mut self, fsm: &mut EditorFSM) -> Result<(), io::Error> {
         let Size { height, .. } = self.terminal.get_size();
 
         if let Some(key) = stdin().keys().next() {
@@ -264,8 +265,7 @@ impl Editor {
                             // switch to insert mode
                         }
                     } else {
-
-                        // print!("{}", x);
+                        fsm.run(&x, self);
                     }
                 },
                 Key::Ctrl('q') => self.should_quit = true,
@@ -283,39 +283,38 @@ impl Editor {
         Ok(())
     }
 
-    pub fn prompt<C>(&mut self, mut callback: C, prompt: Option<String>) -> Result<Option<String>, io::Error>
-    where C: FnMut(&mut Self, Key){
-        let mut result = String::new();
-        loop {
-            self.draw_message_bar(Some(&result));
-            self.terminal.flush()?;
-            match stdin().keys().next().unwrap_or(Err(io::Error::new(ErrorKind::InvalidInput, "")))? {
-                Key::Backspace => {
-                    result.pop();
-                },
-                Key::Char('\n') => {
-                    callback(self, Key::Char('\n'));
-                    break;
-                },
-                Key::Char(x) => {
-                    if !(x.is_control()) {
-                        callback(self, Key::Char(x));
-                        result.push(x);
-                    }
-                },
-                Key::Esc => {
-                    result.truncate(0);
-                    break;
-                },
-                _ => ()
-            }
-
-        }
-
-        if result.is_empty() { return Ok(None); }
-
-        Ok(Some(result))
-    }
+    // pub fn prompt<C>(&mut self, mut callback: C, prompt: Option<String>) -> Result<Option<String>, io::Error>
+    // where C: FnMut(&mut Self, Key){
+    //     let mut result = String::new();
+    //     loop {
+    //
+    //         match stdin().keys().next().unwrap_or(Err(io::Error::new(ErrorKind::InvalidInput, "")))? {
+    //             Key::Backspace => {
+    //                 result.pop();
+    //             },
+    //             Key::Char('\n') => {
+    //                 callback(self, Key::Char('\n'));
+    //                 break;
+    //             },
+    //             Key::Char(x) => {
+    //                 if !(x.is_control()) {
+    //                     callback(self, Key::Char(x));
+    //                     result.push(x);
+    //                 }
+    //             },
+    //             Key::Esc => {
+    //                 result.truncate(0);
+    //                 break;
+    //             },
+    //             _ => ()
+    //         }
+    //
+    //     }
+    //
+    //     if result.is_empty() { return Ok(None); }
+    //
+    //     Ok(Some(result))
+    // }
 
     pub fn draw_rows(&self) {
         let Size { height, width } = self.terminal.get_size();
@@ -499,7 +498,13 @@ impl Editor {
         Ok(())
     }
 
-    // pub fn log_command(&mut self, command: String) {
-    //     log!("{}", command);
-    // }
+}
+
+impl Promptable for Editor {
+    fn on_prompt_loop_start(&mut self, result: &str) -> Result<(), std::io::Error> {
+        self.draw_message_bar(Some(&result));
+        self.terminal.flush()?;
+
+        Ok(())
+    }
 }
