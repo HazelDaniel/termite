@@ -29,7 +29,8 @@ pub struct Editor {
     pub highlighted_word:           Option<String>,
     pub mode:                       TerminalMode,
     pub movement_data:              MovementData,
-    pub selection:                  Option<Selection>
+    pub selection:                  Option<Selection>,
+    pub net_height:                 u16
 }
 
 
@@ -48,6 +49,7 @@ impl Default for Editor {
             mode: TerminalMode::Normal,
             movement_data: MovementData::default(),
             selection: None,
+            net_height: 0
         }
     }
 }
@@ -56,6 +58,7 @@ impl Editor {
     pub async fn run(&mut self, fsm: &mut EditorFSM) -> Result<(), io::Error> {
         let mut terminal = self.terminal.get_std_buffer();
         let Size { width, height } = self.terminal.get_size();
+        self.net_height = height;
         self.document.load();
 
         loop {
@@ -97,8 +100,10 @@ impl Editor {
         );
 
         self.draw_rows();
-        self.draw_status_bar();
-        self.draw_message_bar(None);
+
+        self.net_height = height;
+        self.net_height = self.net_height.saturating_sub(self.draw_status_bar()?);
+        self.net_height = self.net_height.saturating_sub(self.draw_message_bar(None)?);
 
         self.move_cursor(Position {
             x: self.cursor_position.x.saturating_sub(offset_x),
@@ -244,6 +249,31 @@ impl Editor {
                     self.cursor_position.x = 0;
                     self.movement_data.last_nav_position.x = self.cursor_position.x;
                 },
+                Key::Char('H') => {
+                    if let Some(curr_row) = self.document.rows.get(self.offset.y as usize)
+                    {
+                        if curr_row.len < (self.cursor_position.x) as usize {
+                            self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                        }
+                        self.cursor_position.y = self.offset.y;
+
+                        self.movement_data.last_nav_position.x = self.cursor_position.x;
+                    }
+                },
+                Key::Char('M') => {
+                    let height = self.net_height;
+                    let middle_position = (self.offset.y.saturating_add(height.saturating_div(2)));
+
+                    if let Some(curr_row) = self.document.rows.get(middle_position as usize)
+                    {
+                        if curr_row.len < (self.cursor_position.x) as usize {
+                            self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                        }
+                        self.cursor_position.y = middle_position as u16;
+
+                        self.movement_data.last_nav_position.x = self.cursor_position.x;
+                    }
+                },
                 Key::Char(':') => {
                     if let Some(command) = self.prompt(|editor, key|  {}, None)? {
                         log!("{}", command);
@@ -282,39 +312,6 @@ impl Editor {
     pub fn process_insert_mode(&mut self) -> Result<(), io::Error> {
         Ok(())
     }
-
-    // pub fn prompt<C>(&mut self, mut callback: C, prompt: Option<String>) -> Result<Option<String>, io::Error>
-    // where C: FnMut(&mut Self, Key){
-    //     let mut result = String::new();
-    //     loop {
-    //
-    //         match stdin().keys().next().unwrap_or(Err(io::Error::new(ErrorKind::InvalidInput, "")))? {
-    //             Key::Backspace => {
-    //                 result.pop();
-    //             },
-    //             Key::Char('\n') => {
-    //                 callback(self, Key::Char('\n'));
-    //                 break;
-    //             },
-    //             Key::Char(x) => {
-    //                 if !(x.is_control()) {
-    //                     callback(self, Key::Char(x));
-    //                     result.push(x);
-    //                 }
-    //             },
-    //             Key::Esc => {
-    //                 result.truncate(0);
-    //                 break;
-    //             },
-    //             _ => ()
-    //         }
-    //
-    //     }
-    //
-    //     if result.is_empty() { return Ok(None); }
-    //
-    //     Ok(Some(result))
-    // }
 
     pub fn draw_rows(&self) {
         let Size { height, width } = self.terminal.get_size();
@@ -393,13 +390,12 @@ impl Editor {
         }
     }
 
-    pub fn draw_status_bar(&mut self) -> Result<(), io::Error> {
+    pub fn draw_status_bar(&mut self) -> Result<u16, io::Error> {
         let mut rendered_width: usize = 0;
         let Size { width, height } = self.terminal.get_size();
         let Position { y, ..} = self.cursor_position;
         let now = Local::now();
         let circled_dot = format!("{}", " ⊙ ");
-
 
         print!("{}", termion::color::Fg(termion::color::White));
         print!("{}", termion::color::Bg(termion::color::AnsiValue(0)));
@@ -441,10 +437,14 @@ impl Editor {
 
         print!("\r");
 
-        Ok(())
+        Ok((1))
     }
 
-    pub fn draw_message_bar(&mut self, message: Option<&str>) -> Result<(), io::Error> {
+    pub fn get_net_height(&mut self) -> u16 {
+        self.net_height
+    }
+
+    pub fn draw_message_bar(&mut self, message: Option<&str>) -> Result<u16, io::Error> {
         let mut rendered_width: usize = 0;
         let Size { width, height } = self.terminal.get_size();
         let Position { y, ..} = self.cursor_position;
@@ -491,7 +491,7 @@ impl Editor {
         self.terminal.flush()?;
 
 
-        Ok(())
+        Ok((1))
     }
 
     fn update_selection(&mut self) -> Result<(), io::Error> {

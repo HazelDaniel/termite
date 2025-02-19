@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use crate::editor::Editor;
-use crate::utils::{Position, PromptCallbackCode, Promptable};
+use crate::utils::{jump_to_line, Position, PromptCallbackCode, Promptable};
 use termion::event::Key;
 use crate::config::INVARIANT_ERROR_MESSAGE;
 use crate::terminal::Terminal;
@@ -9,19 +9,23 @@ use crate::log;
 #[derive(Debug, PartialEq)]
 pub enum EditorState {
     Visual,
+    MLVisual,
+    BlockVisual,
     Normal,
     Replace,
     Search,
     LineScan,
     G,
-    Z
+    Z,
+    Delete,
+    Change
 }
 
 pub struct EditorFSM {
-    state:              EditorState,
-    command_buffer:     String,
-    last_command:       String,
-    command_count:      usize,
+    pub state:              EditorState,
+    pub command_buffer:     String,
+    pub last_command:       String,
+    pub command_count:      usize,
 }
 
 impl EditorFSM {
@@ -48,9 +52,14 @@ impl EditorFSM {
 
         // STATE MACHINE FOR EDITOR STATE
         match base_key {
-            'v' => {
-                self.state = EditorState::Visual;
-                self.command_buffer.push(*base_key);
+            'v' | 'V' => {
+                if *base_key == 'V' {
+                    self.state = EditorState::MLVisual;
+                    self.command_buffer.push(*base_key);
+                } else {
+                    self.state = EditorState::Visual;
+                    self.command_buffer.push(*base_key);
+                }
             },
             'r' => {
                 self.state = EditorState::Replace;
@@ -72,7 +81,15 @@ impl EditorFSM {
                 self.state = EditorState::Z;
                 self.command_buffer.push(*base_key);
             },
-            '0'..'9' => {
+            'c' => {
+                self.state = EditorState::Change;
+                self.command_buffer.push(*base_key);
+            },
+            'd' => {
+                self.state = EditorState::Delete;
+                self.command_buffer.push(*base_key);
+            },
+            '0'..='9' => {
                 let number = base_key.to_digit(10).expect("failed to parse base key!");
                 self.command_count = (self.command_count * 10).saturating_add(number as usize);
                 self.command_buffer.push(*base_key);
@@ -80,16 +97,11 @@ impl EditorFSM {
             _ => ()
         }
 
-
         self.prompt_exec( |fsm, key| {
             match key {
                 Key::Char('g') => {
                     if fsm.state == EditorState::G {
-                        let Position {x, ..} = editor.cursor_position;
-                        editor.cursor_position = Position {x, y: fsm.command_count.saturating_sub(1) as u16};
-                        fsm.command_buffer.push('g');
-
-                        // RESET ON SUCCESS
+                        jump_to_line(editor, fsm, &'g');
                         fsm.success_exit();
 
                         return PromptCallbackCode::Success;
@@ -99,7 +111,16 @@ impl EditorFSM {
                     }
                     return PromptCallbackCode::Continue;
                 },
-                Key::Char('0'..'9') => match key {
+                Key::Char('G') => {
+                    if fsm.state == EditorState::Normal {
+                        jump_to_line(editor, fsm, &'G');
+                        fsm.success_exit();
+
+                        return PromptCallbackCode::Success;
+                    }
+                    return PromptCallbackCode::Continue;
+                },
+                Key::Char('0'..='9') => match key {
                     Key::Char(key) => {
                         let number = key.to_digit(10).expect("failed to parse action key!");
                         if fsm.state == EditorState::Normal { // we are just starting the command or we're still racking up the command_count
@@ -118,8 +139,6 @@ impl EditorFSM {
 
         }, None);
     }
-
-
 }
 
 impl Promptable for EditorFSM { }

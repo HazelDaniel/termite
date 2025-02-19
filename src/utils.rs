@@ -12,12 +12,15 @@ use chrono::format::Item::{Error as ChronoError};
 use tokio::task::JoinHandle;
 use once_cell::sync::OnceCell;
 use termion::event::Key;
+use crate::automata::EditorFSM;
+use crate::editor::Editor;
 
 pub enum PromptCallbackCode {
     Success,
     Failure,
     Continue
 }
+
 pub struct FSMActionQueue {
     pub actions:            Vec<FSMAction>
 }
@@ -308,4 +311,26 @@ pub fn find_grapheme_index(haystack: &str, offset: usize, needle: &str) -> Optio
     haystack_graphemes
         .windows(needle_graphemes.len()) // Create sliding windows of the needle's length
         .position(|window| window == needle_graphemes.as_slice()) // Find first occurrence
+}
+
+pub fn jump_to_line(editor: &mut Editor, fsm: &mut EditorFSM, final_key: &char) -> () {
+    let Position {x, ..} = editor.cursor_position;
+
+    if fsm.command_count > editor.document.rows.len() { // out of bounds
+        fsm.command_buffer.push(*final_key);
+        return;
+    } else {
+        if let Some(seek_row) = editor.document.rows.get(fsm.command_count.saturating_sub(1) as usize)
+        {
+            if seek_row.len < (editor.movement_data.last_nav_position.x) as usize {
+                editor.cursor_position.x = seek_row.len.saturating_sub(1) as u16;
+            } else {
+                editor.cursor_position.x = editor.movement_data.last_nav_position.x;
+            }
+            editor.cursor_position.y = fsm.command_count.saturating_sub(1) as u16;
+        }
+    }
+
+
+    fsm.command_buffer.push(*final_key);
 }
