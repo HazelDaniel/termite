@@ -79,6 +79,7 @@ impl Editor {
             }
         }
     }
+
     pub fn refresh_screen(&mut self) -> Result<(), io::Error> {
         let Position {
             x: offset_x,
@@ -102,8 +103,10 @@ impl Editor {
         self.draw_rows();
 
         self.net_height = height;
-        self.net_height = self.net_height.saturating_sub(self.draw_status_bar()?);
-        self.net_height = self.net_height.saturating_sub(self.draw_message_bar(None)?);
+        let status_bar_height = self.draw_status_bar()?;
+        let message_bar_height = self.draw_message_bar(None)?;
+
+        self.net_height = self.net_height.saturating_sub(status_bar_height.saturating_add(message_bar_height));
 
         self.move_cursor(Position {
             x: self.cursor_position.x.saturating_sub(offset_x),
@@ -149,143 +152,158 @@ impl Editor {
 
         if let Some(key) = stdin().keys().next() {
             match key? {
-                Key::Char('\n') => {
-                    print!("{}", "\n\r");
-                },
-                Key::Char('l') => {
-                    if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
-                    {
-                        if self.cursor_position.x == curr_row.len.saturating_sub(1) as u16 {
-                            if let Some(next_row) = self
-                                .document
-                                .rows
-                                .get(self.cursor_position.y.saturating_add(1) as usize)
-                            {
-                                self.cursor_position.y = self.cursor_position.y.saturating_add(1);
-                                self.cursor_position.x = 0;
-                            }
-                        } else {
-                            self.cursor_position.x = self.cursor_position.x.saturating_add(1);
-                        }
-                        self.movement_data.last_nav_position.x = self.cursor_position.x;
-                    }
-                },
-                Key::Char('j') => {
-                    if self.cursor_position.y == self.document.rows.len().saturating_sub(1) as u16 {
-                        return Ok(());
-                    }
-
-                    if let Some(next_row) = self
-                        .document
-                        .rows
-                        .get(self.cursor_position.y.saturating_add(1) as usize)
-                    {
-                        if next_row.len <= self.movement_data.last_nav_position.x as usize {
-                            self.cursor_position.x = next_row.len.saturating_sub(1) as u16;
-                        } else {
-                            self.cursor_position.x = self.movement_data.last_nav_position.x;
-                        }
-                        self.cursor_position.y = self.cursor_position.y.saturating_add(1);
-                    }
-
-                    self.update_selection();
-                    self.scroll(ScrollDirection::Down);
-                    return Ok(())
-                },
-                Key::Char('h') => {
-                    if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
-                    {
-                        if self.cursor_position.x == 0_u16 {
-                            if (self.cursor_position.y == 0_u16) {
-                                return Ok(());
-                            }
-                            if let Some(prev_row) = self
-                                .document
-                                .rows
-                                .get(self.cursor_position.y.saturating_sub(1) as usize)
-                            {
-                                self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
-                                self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
-                            }
-                        } else {
-                            self.cursor_position.x = self.cursor_position.x.saturating_sub(1);
-                        }
-
-                        self.movement_data.last_nav_position.x = self.cursor_position.x;
-                    }
-                },
-                Key::Char('k') => {
-                    if self.cursor_position.y == 0 {
-                        return Ok(());
-                    }
-                    if let Some(prev_row) = self
-                        .document
-                        .rows
-                        .get(self.cursor_position.y.saturating_sub(1) as usize)
-                    {
-                        if prev_row.len <= self.movement_data.last_nav_position.x as usize {
-                            self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
-                        } else {
-                            self.cursor_position.x = self.movement_data.last_nav_position.x;
-                        }
-                        self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
-                    }
-                },
-                Key::Char('G') => {
-                    if let Some(curr_row) = self
-                        .document
-                        .rows
-                        .get(self.document.rows.len().saturating_sub(1) as usize)
-                    {
-                        self.cursor_position.y = self.document.rows.len().saturating_sub(1) as u16;
-                        if curr_row.len <= self.movement_data.last_nav_position.x as usize {
-                            self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                        } else {
-                            self.cursor_position.x = self.movement_data.last_nav_position.x;
-                        }
-                    }
-                },
-                Key::Char('0') => {
-                    self.cursor_position.x = 0;
-                    self.movement_data.last_nav_position.x = self.cursor_position.x;
-                },
-                Key::Char('H') => {
-                    if let Some(curr_row) = self.document.rows.get(self.offset.y as usize)
-                    {
-                        if curr_row.len < (self.cursor_position.x) as usize {
-                            self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                        }
-                        self.cursor_position.y = self.offset.y;
-
-                        self.movement_data.last_nav_position.x = self.cursor_position.x;
-                    }
-                },
-                Key::Char('M') => {
-                    let height = self.net_height;
-                    let middle_position = (self.offset.y.saturating_add(height.saturating_div(2)));
-
-                    if let Some(curr_row) = self.document.rows.get(middle_position as usize)
-                    {
-                        if curr_row.len < (self.cursor_position.x) as usize {
-                            self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                        }
-                        self.cursor_position.y = middle_position as u16;
-
-                        self.movement_data.last_nav_position.x = self.cursor_position.x;
-                    }
-                },
+                // Key::Char('l') => {
+                //     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
+                //     {
+                //         if self.cursor_position.x == curr_row.len.saturating_sub(1) as u16 {
+                //             if let Some(next_row) = self
+                //                 .document
+                //                 .rows
+                //                 .get(self.cursor_position.y.saturating_add(1) as usize)
+                //             {
+                //                 self.cursor_position.y = self.cursor_position.y.saturating_add(1);
+                //                 self.cursor_position.x = 0;
+                //             }
+                //         } else {
+                //             self.cursor_position.x = self.cursor_position.x.saturating_add(1);
+                //         }
+                //         self.movement_data.last_nav_position.x = self.cursor_position.x;
+                //     }
+                // },
+                // Key::Char('j') => {
+                //     if self.cursor_position.y == self.document.rows.len().saturating_sub(1) as u16 {
+                //         return Ok(());
+                //     }
+                //
+                //     if let Some(next_row) = self
+                //         .document
+                //         .rows
+                //         .get(self.cursor_position.y.saturating_add(1) as usize)
+                //     {
+                //         if next_row.len <= self.movement_data.last_nav_position.x as usize {
+                //             self.cursor_position.x = next_row.len.saturating_sub(1) as u16;
+                //         } else {
+                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
+                //         }
+                //         self.cursor_position.y = self.cursor_position.y.saturating_add(1);
+                //     }
+                //
+                //     self.update_selection();
+                //     self.scroll(ScrollDirection::Down);
+                //     return Ok(())
+                // },
+                // Key::Char('h') => {
+                //     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
+                //     {
+                //         if self.cursor_position.x == 0_u16 {
+                //             if (self.cursor_position.y == 0_u16) {
+                //                 return Ok(());
+                //             }
+                //             if let Some(prev_row) = self
+                //                 .document
+                //                 .rows
+                //                 .get(self.cursor_position.y.saturating_sub(1) as usize)
+                //             {
+                //                 self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
+                //                 self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
+                //             }
+                //         } else {
+                //             self.cursor_position.x = self.cursor_position.x.saturating_sub(1);
+                //         }
+                //
+                //         self.movement_data.last_nav_position.x = self.cursor_position.x;
+                //     }
+                // },
+                // Key::Char('k') => {
+                //     if self.cursor_position.y == 0 {
+                //         return Ok(());
+                //     }
+                //     if let Some(prev_row) = self
+                //         .document
+                //         .rows
+                //         .get(self.cursor_position.y.saturating_sub(1) as usize)
+                //     {
+                //         if prev_row.len <= self.movement_data.last_nav_position.x as usize {
+                //             self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
+                //         } else {
+                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
+                //         }
+                //         self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
+                //     }
+                // },
+                // Key::Char('G') => {
+                //     if let Some(curr_row) = self
+                //         .document
+                //         .rows
+                //         .get(self.document.rows.len().saturating_sub(1) as usize)
+                //     {
+                //         self.cursor_position.y = self.document.rows.len().saturating_sub(1) as u16;
+                //         if curr_row.len <= self.movement_data.last_nav_position.x as usize {
+                //             self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                //         } else {
+                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
+                //         }
+                //     }
+                // },
+                // Key::Char('0') => {
+                //     self.cursor_position.x = 0;
+                //     self.movement_data.last_nav_position.x = self.cursor_position.x;
+                // },
+                // Key::Char('H') => {
+                //     if let Some(curr_row) = self.document.rows.get(self.offset.y as usize)
+                //     {
+                //         if curr_row.len < (self.movement_data.last_nav_position.x) as usize {
+                //             self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                //         } else {
+                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
+                //         }
+                //         self.cursor_position.y = self.offset.y;
+                //     }
+                // },
+                // Key::Char('L') => {
+                //     let height = self.net_height;
+                //     let bottom = self.offset.y.saturating_add(height).saturating_add(1);
+                //
+                //     if let Some(curr_row) = self.document.rows.get(bottom as usize)
+                //     {
+                //         if curr_row.len < (self.movement_data.last_nav_position.x) as usize {
+                //             self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                //         } else {
+                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
+                //         }
+                //
+                //         self.cursor_position.y = bottom;
+                //     }
+                // },
+                // Key::Char('M') => {
+                //     let height = self.net_height;
+                //     let middle_position = (self.offset.y.saturating_add(height.saturating_div(2)));
+                //
+                //     if let Some(curr_row) = self.document.rows.get(middle_position as usize)
+                //     {
+                //         if curr_row.len < (self.movement_data.last_nav_position.x) as usize {
+                //             self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                //         } else {
+                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
+                //         }
+                //         self.cursor_position.y = middle_position;
+                //     }
+                // },
                 Key::Char(':') => {
                     if let Some(command) = self.prompt(|editor, key|  {}, None)? {
+                        if command == "q" || command == "q!" {
+                            self.should_quit = true;
+                        }
                         log!("{}", command);
                     }
                 },
-                Key::Char('$') => {
-                    if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
-                    {
-                        self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                        self.movement_data.last_nav_position.x = self.cursor_position.x;
-                    }
-                },
+                // Key::Char('$') => {
+                //     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
+                //     {
+                //         self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
+                //         self.movement_data.last_nav_position.x = self.cursor_position.x;
+                //     }
+                // },
                 Key::Char(x) => {
                     if (self.mode == TerminalMode::Normal
                         && !self.document.dirty
@@ -298,7 +316,6 @@ impl Editor {
                         fsm.run(&x, self);
                     }
                 },
-                Key::Ctrl('q') => self.should_quit = true,
                 Key::Up | Key::Down | Key::Left | Key::Right => {},
                 _ => print!("random key pressed!"),
             }
@@ -494,7 +511,7 @@ impl Editor {
         Ok((1))
     }
 
-    fn update_selection(&mut self) -> Result<(), io::Error> {
+    pub fn update_selection(&mut self) -> Result<(), io::Error> {
         Ok(())
     }
 

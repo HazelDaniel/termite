@@ -22,6 +22,7 @@ use crate::utils::{OrderedLogger, LOGGER};
 
 #[tokio::main]
 async fn main() -> Result<(), io::Error> {
+    #![allow(non_snake_case)]
     let mut FSM: EditorFSM = EditorFSM::new();
 
     let args: Vec<String> = env::args().collect();

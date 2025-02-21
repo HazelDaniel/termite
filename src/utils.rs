@@ -119,6 +119,25 @@ pub struct Selection {
     pub end:            (u16, u16), // range is: [start, end]
 }
 
+#[derive(Debug, PartialEq, Hash)]
+pub enum VCharacterClass {
+    Blank,
+    Word,
+    Punctuation,
+    NonPunctGraph
+}
+
+impl From<VCharacterClass> for String {
+    fn from(c: VCharacterClass) -> Self {
+        match c {
+            VCharacterClass::Blank => "blank".to_string(),
+            VCharacterClass::Word => "word".to_string(),
+            VCharacterClass::Punctuation => "punctuation".to_string(),
+            VCharacterClass::NonPunctGraph => "nonPunctGraph".to_string()
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum NumberMode {
     Decimal,
@@ -313,7 +332,31 @@ pub fn find_grapheme_index(haystack: &str, offset: usize, needle: &str) -> Optio
         .position(|window| window == needle_graphemes.as_slice()) // Find first occurrence
 }
 
-pub fn jump_to_line(editor: &mut Editor, fsm: &mut EditorFSM, final_key: &char) -> () {
+pub fn find_char_position(text: &str, condition: impl Fn(char) -> bool) -> Option<usize> {
+    text.char_indices().find(|&(_, c)| condition(c)).map(|(i, _)| i)
+}
+
+pub fn is_word(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+pub fn get_v_char_class(c: char) -> VCharacterClass {
+    if is_word(c) {
+        return VCharacterClass::Word;
+    } else if c.is_whitespace() {
+        return VCharacterClass::Blank;
+    } else if c.is_ascii_punctuation() {
+        return VCharacterClass::Punctuation;
+    } else {
+        return VCharacterClass::NonPunctGraph;
+    }
+}
+
+pub fn find_string_position(texts: &Vec<&str>, condition: impl Fn(&str) -> bool) -> Option<usize> {
+    texts.iter().enumerate().find(|(i, & c)| condition(c)).map(|(i, _)| i)
+}
+
+pub fn v_jump_to_line(editor: &mut Editor, fsm: &mut EditorFSM, final_key: &char) -> () { // a vertical line jump
     let Position {x, ..} = editor.cursor_position;
 
     if fsm.command_count > editor.document.rows.len() { // out of bounds
@@ -330,7 +373,6 @@ pub fn jump_to_line(editor: &mut Editor, fsm: &mut EditorFSM, final_key: &char) 
             editor.cursor_position.y = fsm.command_count.saturating_sub(1) as u16;
         }
     }
-
 
     fsm.command_buffer.push(*final_key);
 }
