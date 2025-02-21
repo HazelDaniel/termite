@@ -124,7 +124,8 @@ pub enum VCharacterClass {
     Blank,
     Word,
     Punctuation,
-    NonPunctGraph
+    NonPunctGraph,
+    Others
 }
 
 impl From<VCharacterClass> for String {
@@ -133,7 +134,8 @@ impl From<VCharacterClass> for String {
             VCharacterClass::Blank => "blank".to_string(),
             VCharacterClass::Word => "word".to_string(),
             VCharacterClass::Punctuation => "punctuation".to_string(),
-            VCharacterClass::NonPunctGraph => "nonPunctGraph".to_string()
+            VCharacterClass::NonPunctGraph => "nonPunctGraph".to_string(),
+            VCharacterClass::Others => "others".to_string(),
         }
     }
 }
@@ -349,6 +351,14 @@ pub fn get_v_char_class(c: char) -> VCharacterClass {
         return VCharacterClass::Punctuation;
     } else {
         return VCharacterClass::NonPunctGraph;
+    }
+}
+
+pub fn get_isolated_v_char_class(c: char) -> VCharacterClass {
+    match get_v_char_class(c) {
+        VCharacterClass::Word => VCharacterClass::Word,
+        VCharacterClass::Blank => VCharacterClass::Blank,
+        _ => VCharacterClass::Others
     }
 }
 

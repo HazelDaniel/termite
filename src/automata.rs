@@ -229,6 +229,14 @@ impl EditorFSM {
                                 fsm.success_exit();
                                 return PromptCallbackCode::Success;
                             },
+                            'w' => {
+                                for _ in 0..fsm.command_count {
+                                    to_next_word_start(fsm, editor, fsm.command_count);
+                                }
+                                fsm.command_buffer.push('w');
+                                fsm.success_exit();
+                                return PromptCallbackCode::Success;
+                            },
                             'h' => {
                                 move_left(fsm, editor,  fsm.command_count);
 
@@ -304,7 +312,7 @@ pub mod commands {
     use std::collections::HashMap;
     use crate::editor::Editor;
     use crate::EditorFSM;
-    use crate::utils::{find_char_position, find_string_position, get_v_char_class, is_word, ScrollDirection, VCharacterClass};
+    use crate::utils::{find_char_position, find_string_position, get_isolated_v_char_class, get_v_char_class, is_word, ScrollDirection, VCharacterClass};
     use unicode_segmentation::UnicodeSegmentation;
     use crate::log;
 
@@ -509,23 +517,48 @@ pub mod commands {
         return;
     }
 
-    pub fn to_next_word_start (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) { // well, technically it's more than just word start
+    pub fn to_next_word_start (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        loop {
+            if to_next_word_start_line(fsm, editor, action_count) > -1 {
+                return;
+            } else {
+                if editor.cursor_position.y.saturating_add(1) < editor.document.rows.len() as u16 {
+                    editor.cursor_position.y = editor.cursor_position.y.saturating_add(1);
+                    editor.cursor_position.x = 0;
+                    editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+                } else {return};
+
+                if editor.cursor_position.y.saturating_add(1) < editor.document.rows.len() as u16 {
+                    if let Some(row) = editor.document.rows.get(editor.cursor_position.y as usize) {
+                        if let Some(c) = row.string.graphemes(true).collect::<Vec<&str>>().get(editor.cursor_position.x as usize) {
+                            if !((*c).chars().next().unwrap_or(' ').is_whitespace()) { return; }
+                        } else { return; }
+                    }
+
+                } else { return; }
+
+            }
+        }
+    }
+
+    fn to_next_word_start_line (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 { // well, technically it's more than just word start
         if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
         {
             let mut graphemes = curr_row.string.graphemes(true).collect::<Vec<&str>>();
-            let mut next_match_idx: i32 = 0;
+            let mut next_match_idx: i32 = -1;
             let mut index = editor.cursor_position.x;
             let mut flags = (false/*word start*/, false/*blank start*/, false/* graph start*/);
             let mut search_flags = (false/*word -> blank*/, false/*blank -> graph*/, false/*graph1 -> graph2*/);
             let mut x = index;
             let mut class_hash: HashMap<String, i32> = HashMap::new();
 
+            if curr_row.string.is_empty() { return -1; }
             next_match_idx = loop {
                 if let Some(grapheme) = graphemes.get(x as usize) {
                     let at_start = x == editor.cursor_position.x;
-                    match (*grapheme).chars().next() {// TODO: graph1 -> graph2 transitions jump character classes even tho they are separated by a space
+                    match (*grapheme).chars().next() {
                         Some(c) => {
-                            if is_word(c) && at_start { /* cursor on a word character or blank*/  flags.0 = true;}
+                            if is_word(c) && at_start { flags.0 = true;}
                             else if c.is_whitespace() && at_start { flags.1 = true; }
                             else if c.is_ascii_graphic() && at_start { flags.2 = true; }
 
@@ -549,14 +582,18 @@ pub mod commands {
                                 break x as i32;
                             }
 
+                            if flags.2 && c.is_whitespace() { class_hash.clear(); }
+
                             if flags.2 && c.is_ascii_graphic() && !is_word(c) && search_flags.2 && !(search_flags.0 || search_flags.1) {
                                 search_flags.2 = true;
-                                let class: String = get_v_char_class(c).into();
+                                let mut class: String = get_v_char_class(c).into();
+
+                                if !class_hash.contains_key(&class) && !at_start { break x as i32; }
                                 if let Some(c) = class_hash.get_mut(&class) {
                                     *c += 1;
                                 } else { class_hash.insert(class, 1); }
                             } else if flags.2 && c.is_ascii_graphic() && search_flags.2 && !(search_flags.0 || search_flags.1) {
-                                let class: String = get_v_char_class(c).into();
+                                let mut class: String = get_v_char_class(c).into();
                                 if !class_hash.contains_key(&class) {
                                     break x as i32;
                                 } else {
@@ -564,8 +601,9 @@ pub mod commands {
                                 }
                             }
 
+
                         },
-                        _ => { return; }
+                        _ => { return next_match_idx; }
                     }
                 }
                 x += 1;
@@ -573,11 +611,15 @@ pub mod commands {
                 if (x as usize) >= graphemes.len() { break -1_i32; }
             };
 
-            if next_match_idx <= index as i32 { return; }
+            if next_match_idx <= index as i32 {
+                return next_match_idx;
+            }
 
             editor.cursor_position.x = next_match_idx as u16;
             editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+            return next_match_idx;
         }
 
+        -1
     }
 }
