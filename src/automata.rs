@@ -1,8 +1,9 @@
 use std::collections::HashSet;
+use std::cmp::max;
 use crate::editor::Editor;
 use crate::utils::{v_jump_to_line, Position, PromptCallbackCode, Promptable, ScrollDirection};
 use termion::event::Key;
-use crate::automata::commands::to_next_word_start;
+use crate::automata::commands::{to_next_word_start, to_prev_word_end};
 use crate::config::INVARIANT_ERROR_MESSAGE;
 use crate::terminal::Terminal;
 use crate::log;
@@ -146,6 +147,10 @@ impl EditorFSM {
                 self.state = EditorState::Change;
                 self.command_buffer.push(*base_key);
             },
+            'y' => {
+                self.state = EditorState::Yank;
+                self.command_buffer.push(*base_key);
+            },
             'd' => {
                 self.state = EditorState::Delete;
                 self.command_buffer.push(*base_key);
@@ -172,6 +177,18 @@ impl EditorFSM {
                     }
                     return PromptCallbackCode::Continue;
                 },
+                Key::Char('e') => {
+                    if fsm.state == EditorState::G {
+                        for _ in 0..max(fsm.command_count, 1) {
+                            to_prev_word_end(fsm, editor, fsm.command_count);
+                        }
+                        fsm.command_buffer.push('e');
+                        fsm.success_exit();
+
+                        return PromptCallbackCode::Success;
+                    }
+                    return PromptCallbackCode::Continue;
+                }
                 Key::Char('G') => {
                     if fsm.state == EditorState::Normal {
                         v_jump_to_line(editor, fsm, &'G');
@@ -614,6 +631,113 @@ pub mod commands {
             if next_match_idx <= index as i32 {
                 return next_match_idx;
             }
+
+            editor.cursor_position.x = next_match_idx as u16;
+            editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+            return next_match_idx;
+        }
+
+        -1
+    }
+
+
+    pub fn to_prev_word_end (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        loop {
+            if to_prev_word_end_line(fsm, editor, action_count) > -1 {
+                return;
+            } else {
+                if editor.cursor_position.y == 0 { return; }
+                if let Some(prev_row) = editor.document.rows.get(editor.cursor_position.y.saturating_sub(1) as usize) {
+                    editor.cursor_position.y = editor.cursor_position.y.saturating_sub(1);
+                    editor.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
+                    editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+                } else { return; };
+
+                if editor.cursor_position.y.saturating_sub(1) > 0 as u16 {
+                    if let Some(row) = editor.document.rows.get(editor.cursor_position.y as usize) {
+                        if let Some(c) = row.string.graphemes(true).collect::<Vec<&str>>().get(editor.cursor_position.x as usize) {
+                            if !((*c).chars().next().unwrap_or(' ').is_whitespace()) { return; }
+                        } else { return; }
+                    }
+
+                } else { return; }
+
+            }
+        }
+    }
+
+    fn to_prev_word_end_line (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 { // well, technically it's more than just word end
+        if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
+        {
+            let mut graphemes = curr_row.string.graphemes(true).rev().collect::<Vec<&str>>();
+            let mut next_match_idx: i32 = -1;
+            let mut index = editor.cursor_position.x;
+            let mut flags = (false/*word start*/, false/*blank start*/, false/* graph start*/);
+            let mut search_flags = (false/*word -> blank*/, false/*blank -> graph*/, false/*graph1 -> graph2*/);
+            let mut x = index;
+            let mut class_hash: HashMap<String, i32> = HashMap::new();
+
+            if curr_row.string.is_empty() { return -1; }
+            next_match_idx = loop {
+                if let Some(grapheme) = graphemes.get(graphemes.len().saturating_sub(1).saturating_sub(x as usize)) {
+                    let at_start = x == editor.cursor_position.x;
+
+                    match (*grapheme).chars().next() {
+                        Some(c) => {
+                            if is_word(c) && at_start { flags.0 = true;}
+                            else if c.is_whitespace() && at_start { flags.1 = true; }
+                            else if c.is_ascii_graphic() && at_start { flags.2 = true; }
+
+                            if is_word(c) && at_start && flags.0 { search_flags.0 = true; }/*word -> blank*/
+                            else if c.is_whitespace() && at_start && flags.1 { search_flags.1 = true; }/*blank to graph*/
+                            else if c.is_ascii_graphic() && at_start && flags.2 { search_flags.2 = true; }/*graph1 -> graph2*/
+
+                            if flags.0 && is_word(c) && search_flags.0 && !(search_flags.1 || search_flags.2) {
+                                search_flags.0 = true;
+                            } else if flags.0 && (c.is_whitespace() || (c.is_ascii_graphic() && !is_word(c))) && search_flags.0 && !(search_flags.1 || search_flags.2) {
+                                search_flags.0 = false;
+                                search_flags.1 = true;
+                                if !c.is_whitespace() { break x as i32; }
+                            } else if flags.0 && c.is_ascii_graphic() && search_flags.1 && !(search_flags.0 || search_flags.2) {
+                                break x as i32;
+                            }
+
+                            if flags.1 && c.is_whitespace() && search_flags.1 && !(search_flags.0 || search_flags.2) {
+                                search_flags.1 = true;
+                            } else if flags.1 && c.is_ascii_graphic() && search_flags.1 && !(search_flags.0 || search_flags.2) {
+                                break x as i32;
+                            }
+
+                            if flags.2 && c.is_whitespace() { class_hash.clear(); }
+
+                            if flags.2 && c.is_ascii_graphic() && !is_word(c) && search_flags.2 && !(search_flags.0 || search_flags.1) {
+                                search_flags.2 = true;
+                                let mut class: String = get_v_char_class(c).into();
+
+                                if !class_hash.contains_key(&class) && !at_start { break x as i32; }
+                                if let Some(c) = class_hash.get_mut(&class) {
+                                    *c += 1;
+                                } else { class_hash.insert(class, 1); }
+                            } else if flags.2 && c.is_ascii_graphic() && search_flags.2 && !(search_flags.0 || search_flags.1) {
+                                let mut class: String = get_v_char_class(c).into();
+                                if !class_hash.contains_key(&class) {
+                                    break x as i32;
+                                } else {
+                                    if let Some(c) = class_hash.get_mut(&class) { *c += 1; }
+                                }
+                            }
+
+
+                        },
+                        _ => { return next_match_idx; }
+                    }
+                }
+                x = x.saturating_sub(1);
+
+                if (x) == 0 { break -1_i32; }
+            };
+
+            if next_match_idx == -1 { return next_match_idx; }
 
             editor.cursor_position.x = next_match_idx as u16;
             editor.movement_data.last_nav_position.x = editor.cursor_position.x;

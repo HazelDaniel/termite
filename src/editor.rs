@@ -152,169 +152,17 @@ impl Editor {
 
         if let Some(key) = stdin().keys().next() {
             match key? {
-                // Key::Char('l') => {
-                //     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
-                //     {
-                //         if self.cursor_position.x == curr_row.len.saturating_sub(1) as u16 {
-                //             if let Some(next_row) = self
-                //                 .document
-                //                 .rows
-                //                 .get(self.cursor_position.y.saturating_add(1) as usize)
-                //             {
-                //                 self.cursor_position.y = self.cursor_position.y.saturating_add(1);
-                //                 self.cursor_position.x = 0;
-                //             }
-                //         } else {
-                //             self.cursor_position.x = self.cursor_position.x.saturating_add(1);
-                //         }
-                //         self.movement_data.last_nav_position.x = self.cursor_position.x;
-                //     }
-                // },
-                // Key::Char('j') => {
-                //     if self.cursor_position.y == self.document.rows.len().saturating_sub(1) as u16 {
-                //         return Ok(());
-                //     }
-                //
-                //     if let Some(next_row) = self
-                //         .document
-                //         .rows
-                //         .get(self.cursor_position.y.saturating_add(1) as usize)
-                //     {
-                //         if next_row.len <= self.movement_data.last_nav_position.x as usize {
-                //             self.cursor_position.x = next_row.len.saturating_sub(1) as u16;
-                //         } else {
-                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
-                //         }
-                //         self.cursor_position.y = self.cursor_position.y.saturating_add(1);
-                //     }
-                //
-                //     self.update_selection();
-                //     self.scroll(ScrollDirection::Down);
-                //     return Ok(())
-                // },
-                // Key::Char('h') => {
-                //     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
-                //     {
-                //         if self.cursor_position.x == 0_u16 {
-                //             if (self.cursor_position.y == 0_u16) {
-                //                 return Ok(());
-                //             }
-                //             if let Some(prev_row) = self
-                //                 .document
-                //                 .rows
-                //                 .get(self.cursor_position.y.saturating_sub(1) as usize)
-                //             {
-                //                 self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
-                //                 self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
-                //             }
-                //         } else {
-                //             self.cursor_position.x = self.cursor_position.x.saturating_sub(1);
-                //         }
-                //
-                //         self.movement_data.last_nav_position.x = self.cursor_position.x;
-                //     }
-                // },
-                // Key::Char('k') => {
-                //     if self.cursor_position.y == 0 {
-                //         return Ok(());
-                //     }
-                //     if let Some(prev_row) = self
-                //         .document
-                //         .rows
-                //         .get(self.cursor_position.y.saturating_sub(1) as usize)
-                //     {
-                //         if prev_row.len <= self.movement_data.last_nav_position.x as usize {
-                //             self.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
-                //         } else {
-                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
-                //         }
-                //         self.cursor_position.y = self.cursor_position.y.saturating_sub(1);
-                //     }
-                // },
-                // Key::Char('G') => {
-                //     if let Some(curr_row) = self
-                //         .document
-                //         .rows
-                //         .get(self.document.rows.len().saturating_sub(1) as usize)
-                //     {
-                //         self.cursor_position.y = self.document.rows.len().saturating_sub(1) as u16;
-                //         if curr_row.len <= self.movement_data.last_nav_position.x as usize {
-                //             self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                //         } else {
-                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
-                //         }
-                //     }
-                // },
-                // Key::Char('0') => {
-                //     self.cursor_position.x = 0;
-                //     self.movement_data.last_nav_position.x = self.cursor_position.x;
-                // },
-                // Key::Char('H') => {
-                //     if let Some(curr_row) = self.document.rows.get(self.offset.y as usize)
-                //     {
-                //         if curr_row.len < (self.movement_data.last_nav_position.x) as usize {
-                //             self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                //         } else {
-                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
-                //         }
-                //         self.cursor_position.y = self.offset.y;
-                //     }
-                // },
-                // Key::Char('L') => {
-                //     let height = self.net_height;
-                //     let bottom = self.offset.y.saturating_add(height).saturating_add(1);
-                //
-                //     if let Some(curr_row) = self.document.rows.get(bottom as usize)
-                //     {
-                //         if curr_row.len < (self.movement_data.last_nav_position.x) as usize {
-                //             self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                //         } else {
-                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
-                //         }
-                //
-                //         self.cursor_position.y = bottom;
-                //     }
-                // },
-                // Key::Char('M') => {
-                //     let height = self.net_height;
-                //     let middle_position = (self.offset.y.saturating_add(height.saturating_div(2)));
-                //
-                //     if let Some(curr_row) = self.document.rows.get(middle_position as usize)
-                //     {
-                //         if curr_row.len < (self.movement_data.last_nav_position.x) as usize {
-                //             self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                //         } else {
-                //             self.cursor_position.x = self.movement_data.last_nav_position.x;
-                //         }
-                //         self.cursor_position.y = middle_position;
-                //     }
-                // },
                 Key::Char(':') => {
                     if let Some(command) = self.prompt(|editor, key|  {}, None)? {
-                        if command == "q" || command == "q!" {
-                            self.should_quit = true;
-                        }
+                        if command == "q" || command == "q!" { self.should_quit = true; }
                         log!("{}", command);
                     }
                 },
-                // Key::Char('$') => {
-                //     if let Some(curr_row) = self.document.rows.get(self.cursor_position.y as usize)
-                //     {
-                //         self.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
-                //         self.movement_data.last_nav_position.x = self.cursor_position.x;
-                //     }
-                // },
                 Key::Char(x) => {
-                    if (self.mode == TerminalMode::Normal
-                        && !self.document.dirty
-                        && !self.document.is_loaded)
-                    {
-                        if x == 'i' {
-                            // switch to insert mode
-                        }
-                    } else {
-                        fsm.run(&x, self);
-                    }
+                    if x == 'i' {
+                        log!("insert mode");
+                        return Ok(());
+                    } else { fsm.run(&x, self); }
                 },
                 Key::Up | Key::Down | Key::Left | Key::Right => {},
                 _ => print!("random key pressed!"),
