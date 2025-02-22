@@ -177,19 +177,29 @@
 - `j` - move cursor down ------<Done>
 - `k` - move cursor up ------<Done>
 - `l` - move cursor right ------<Done>
-- `gj` - move cursor down (multi-line text)
-- `gk` - move cursor up (multi-line text)
+
+[//]: # (- `gj` - move cursor down &#40;multi-line text &#41;)
+[//]: # (WE ARE NOT SUPPORTING MULTILINE NAVIGATION)
+[//]: # (- `gk` - move cursor up &#40;multi-line text&#41;)
 - `H` - move to top of screen ------<Done>
 - `M` - move to middle of screen ------<Done>
 - `L` - move to bottom of screen ------<Done>
 - `w` - jump forwards to the start of a word ------<Done>
-- `W` - jump forwards to the start of a word (words can contain punctuation)
+
+[//]: # ( merged - `W` with `w` - )
+
 - `e` - jump forwards to the end of a word
-- `E` - jump forwards to the end of a word (words can contain punctuation)
+
+[//]: # ( merged - `E` with `e` - )
+
 - `b` - jump backwards to the start of a word
-- `B` - jump backwards to the start of a word (words can contain punctuation)
+
+[//]: # ( merged - `B` with `b` - )
+
 - `ge` - jump backwards to the end of a word ------<Done>
-- `gE` - jump backwards to the end of a word (words can contain punctuation)
+
+[//]: # ( merged - `gE` with `ge` - )
+
 - `%` - move cursor to matching character (default supported pairs: '()', '{}', '[]' - use `:h matchpairs` in vim for more info)
 - `0` - jump to the start of the line ------<Done>
 - `^` - jump to the first non-blank character of the line
@@ -198,6 +208,7 @@
 - `gg` - go to the first line of the document ------<Done>
 - `G` - go to the last line of the document ------<Done>
 - `5gg` or `5G` - go to line 5 ------<Done>
+- 
 - `gd` - move to local declaration
 - `gD` - move to global declaration
 - `fx` - jump to next occurrence of character x

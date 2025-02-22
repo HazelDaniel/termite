@@ -1,0 +1,11 @@
+(BUG):
+	> the loop to repeat commands run until the prefix number is done counting regardless of whether there's anymore work to be done or not
+
+	fixes:
+		- if there is no more work to be done, break out of the loop to improve perf
+
+(BUG):
+	> the 'e' command skips lines with single graph characters
+
+	fixes:
+		-  handle edge case in the command handler

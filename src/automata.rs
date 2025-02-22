@@ -3,7 +3,6 @@ use std::cmp::max;
 use crate::editor::Editor;
 use crate::utils::{v_jump_to_line, Position, PromptCallbackCode, Promptable, ScrollDirection};
 use termion::event::Key;
-use crate::automata::commands::{to_next_word_start, to_prev_word_end};
 use crate::config::INVARIANT_ERROR_MESSAGE;
 use crate::terminal::Terminal;
 use crate::log;
@@ -59,7 +58,7 @@ impl EditorFSM {
         use self::commands::{move_right, move_down, move_left,
                              move_up, to_last_line, to_line_start,
                              to_top_screen, to_bottom_screen, to_mid_screen,
-                             to_line_end};
+                             to_line_end, to_next_word_end, to_next_word_start, to_prev_word_end};
 
         // STATE MACHINE FOR INPUT HANDLING
         match *base_key {
@@ -77,6 +76,10 @@ impl EditorFSM {
             },
             'w' => {
                 to_next_word_start(self, editor,  1);
+                return;
+            },
+            'e' => {
+                to_next_word_end(self, editor,  1);
                 return;
             },
             'k' => {
@@ -178,7 +181,15 @@ impl EditorFSM {
                     return PromptCallbackCode::Continue;
                 },
                 Key::Char('e') => {
-                    if fsm.state == EditorState::G {
+                    if fsm.state == EditorState::Normal {
+                        for _ in 0..max(fsm.command_count, 1) {
+                            to_next_word_end(fsm, editor, fsm.command_count);
+                        }
+                        fsm.command_buffer.push('e');
+                        fsm.success_exit();
+
+                        return PromptCallbackCode::Success;
+                    } else if fsm.state == EditorState::G {
                         for _ in 0..max(fsm.command_count, 1) {
                             to_prev_word_end(fsm, editor, fsm.command_count);
                         }
@@ -640,7 +651,6 @@ pub mod commands {
         -1
     }
 
-
     pub fn to_prev_word_end (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
         loop {
             if to_prev_word_end_line(fsm, editor, action_count) > -1 {
@@ -738,6 +748,84 @@ pub mod commands {
             };
 
             if next_match_idx == -1 { return next_match_idx; }
+
+            editor.cursor_position.x = next_match_idx as u16;
+            editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+            return next_match_idx;
+        }
+
+        -1
+    }
+
+    pub fn to_next_word_end (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        loop {
+            if to_next_word_end_line(fsm, editor, action_count) > -1 {
+                return;
+            } else {
+                if editor.cursor_position.y.saturating_add(1) < editor.document.rows.len() as u16 {
+                    editor.cursor_position.y = editor.cursor_position.y.saturating_add(1);
+                    editor.cursor_position.x = 0;
+                    editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+                } else {return};
+            }
+        }
+    }
+
+    fn to_next_word_end_line (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 { // well, technically it's more than just word end
+        if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
+        {
+            let mut graphemes = curr_row.string.graphemes(true).collect::<Vec<&str>>();
+            let mut next_match_idx: i32 = -1;
+            let mut index = editor.cursor_position.x;
+            let mut flags = (false/*graph start*/, false/*blank start*/);
+            let mut search_flags = (false/*graph -> blank*/, false/*blank -> graph*/);
+            let mut x = index;
+            let mut class_hash: HashMap<String, i32> = HashMap::new();
+
+            if curr_row.string.is_empty() { return -1; }
+
+            next_match_idx = loop {
+                if let Some(grapheme) = graphemes.get(x as usize) {
+                    let at_start = x == editor.cursor_position.x;
+                    match (*grapheme).chars().next() {
+                        Some(c) => {
+                            if c.is_ascii_graphic() && at_start { flags.0 = true; }
+                            else if c.is_whitespace() && at_start { flags.1 = true; }
+
+                            if c.is_ascii_graphic() && at_start && flags.0 { search_flags.0 = true; }/*graph -> blank*/
+                            else if c.is_whitespace() && at_start && flags.1 { search_flags.1 = true; }/*blank to graph*/
+
+                            if c.is_whitespace() && search_flags.0 {
+                                if let Some(p) = graphemes.get(x.saturating_sub(1) as usize) {
+                                    if p.chars().next().unwrap_or(' ').is_ascii_graphic() && editor.cursor_position.x != x.saturating_sub(1) {
+                                        break x.saturating_sub(1) as i32;
+                                    }
+                                }
+                            }
+                            else if c.is_ascii_graphic()  {
+                                if let Some(n) = graphemes.get(x.saturating_add(1) as usize) {
+                                    if get_isolated_v_char_class(c) != get_isolated_v_char_class(n.chars().next().unwrap_or(c)) && x != editor.cursor_position.x {
+                                        break x as i32;
+                                    }
+                                }
+                            }
+
+                            if x == graphemes.len().saturating_sub(1) as u16 && next_match_idx < 0 && c.is_ascii_graphic() && editor.cursor_position.x != x {
+                                break x as i32;
+                            }
+                        },
+                        _ => { return next_match_idx; }
+                    }
+                }
+
+                x += 1;
+
+                if (x as usize) >= graphemes.len() { break -1_i32; }
+            };
+
+            if next_match_idx <= index as i32 {
+                return next_match_idx;
+            }
 
             editor.cursor_position.x = next_match_idx as u16;
             editor.movement_data.last_nav_position.x = editor.cursor_position.x;
