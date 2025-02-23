@@ -128,10 +128,10 @@
 
 ### (C) "Inner" vs "Around" Text Objects
 
-| Modifier | Description                              |
-|----------|------------------------------------------|
-| i (inner)| Affects only content inside delimiters   |
-| a (around)| Includes delimiters and whitespace      |
+| Modifier | Description                            |
+|----------|----------------------------------------|
+| i (inner)| Affects only content inside delimiters |
+| a (around)| Includes delimiters and whitespace    |
 
 ### Common Text Object Patterns
 
@@ -188,7 +188,7 @@
 
 [//]: # ( merged - `W` with `w` - )
 
-- `e` - jump forwards to the end of a word
+- `e` - jump forwards to the end of a word ------<Done>
 
 [//]: # ( merged - `E` with `e` - )
 
@@ -202,13 +202,13 @@
 
 - `%` - move cursor to matching character (default supported pairs: '()', '{}', '[]' - use `:h matchpairs` in vim for more info)
 - `0` - jump to the start of the line ------<Done>
-- `^` - jump to the first non-blank character of the line
+- `^` - jump to the first non-blank character of the line ------<Done>
 - `$` - jump to the end of the line ------<Done>
-- `g_` - jump to the last non-blank character of the line
+- `g_` - jump to the last non-blank character of the line ------<Done>
 - `gg` - go to the first line of the document ------<Done>
 - `G` - go to the last line of the document ------<Done>
 - `5gg` or `5G` - go to line 5 ------<Done>
-- 
+
 - `gd` - move to local declaration
 - `gD` - move to global declaration
 - `fx` - jump to next occurrence of character x

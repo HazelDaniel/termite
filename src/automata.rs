@@ -55,10 +55,9 @@ impl EditorFSM {
     }
 
     pub fn run(&mut self, base_key: &char, editor: &mut Editor) {
-        use self::commands::{move_right, move_down, move_left,
-                             move_up, to_last_line, to_line_start,
-                             to_top_screen, to_bottom_screen, to_mid_screen,
-                             to_line_end, to_next_word_end, to_next_word_start, to_prev_word_end};
+        use self::commands::{move_right, move_down, move_left, move_up, to_last_line,
+                             to_line_start, to_top_screen, to_bottom_screen, to_mid_screen, to_line_end,
+                             to_next_word_end, to_next_word_start, to_prev_word_end, to_first_line_graph, to_last_line_graph};
 
         // STATE MACHINE FOR INPUT HANDLING
         match *base_key {
@@ -90,6 +89,10 @@ impl EditorFSM {
                 to_last_line(self, editor, 1);
                 return;
 
+            },
+            '^' | '_' => {
+                to_first_line_graph(self, editor, 1);
+                return;
             },
             '0' => {
                 to_line_start(self, editor, 1);
@@ -178,6 +181,25 @@ impl EditorFSM {
                         fsm.state = EditorState::G;
                         fsm.command_buffer.push('g');
                     }
+                    return PromptCallbackCode::Continue;
+                },
+                Key::Char(n@ '^' | n@ '_') => {
+                    if fsm.state == EditorState::Normal {
+                        move_down(fsm, editor, fsm.command_count.saturating_sub(1));
+                        to_first_line_graph(fsm, editor, 1);
+                        fsm.command_buffer.push(n);
+                        fsm.success_exit();
+
+                        return PromptCallbackCode::Success;
+                    } else if fsm.state == EditorState::G && n == '_' {
+                        move_down(fsm, editor, fsm.command_count.saturating_sub(1));
+                        to_last_line_graph(fsm, editor, 1);
+                        fsm.command_buffer.push(n);
+                        fsm.success_exit();
+
+                        return PromptCallbackCode::Success;
+                    }
+
                     return PromptCallbackCode::Continue;
                 },
                 Key::Char('e') => {
@@ -345,6 +367,8 @@ pub mod commands {
     use crate::log;
 
     pub fn move_right (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
+
         if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
         {
             if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
@@ -377,6 +401,7 @@ pub mod commands {
     }
 
     pub fn move_down (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         if editor.cursor_position.y == editor.document.rows.len().saturating_sub(1) as u16 {
             fsm.success_exit();
             return;
@@ -405,6 +430,7 @@ pub mod commands {
     }
 
     pub fn move_left (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
         {
             if action_count > 1 {
@@ -439,6 +465,7 @@ pub mod commands {
     }
 
     pub fn move_up (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         if editor.cursor_position.y == 0 {
             fsm.success_exit();
             return;
@@ -463,6 +490,7 @@ pub mod commands {
     }
 
     pub fn to_last_line (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         if let Some(curr_row) = editor
             .document
             .rows
@@ -480,6 +508,7 @@ pub mod commands {
     }
 
     pub fn to_line_start (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         editor.cursor_position.x = 0;
         editor.movement_data.last_nav_position.x = editor.cursor_position.x;
 
@@ -487,6 +516,7 @@ pub mod commands {
     }
 
     pub fn to_top_screen (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         if let Some(curr_row) = editor.document.rows.get(editor.offset.y as usize)
         {
             if curr_row.len < (editor.movement_data.last_nav_position.x) as usize {
@@ -501,6 +531,7 @@ pub mod commands {
     }
 
     pub fn to_bottom_screen (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         let height = editor.net_height;
         let bottom = editor.offset.y.saturating_add(height).saturating_add(1);
 
@@ -519,6 +550,7 @@ pub mod commands {
     }
 
     pub fn to_mid_screen (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         let height = editor.net_height;
         let middle_position = (editor.offset.y.saturating_add(height.saturating_div(2)));
 
@@ -536,6 +568,7 @@ pub mod commands {
     }
 
     pub fn to_line_end (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
         {
             editor.cursor_position.x = curr_row.len.saturating_sub(1) as u16;
@@ -546,6 +579,7 @@ pub mod commands {
     }
 
     pub fn to_next_word_start (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         loop {
             if to_next_word_start_line(fsm, editor, action_count) > -1 {
                 return;
@@ -570,6 +604,7 @@ pub mod commands {
     }
 
     fn to_next_word_start_line (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 { // well, technically it's more than just word start
+        if action_count == 0 { return -1_i32; }
         if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
         {
             let mut graphemes = curr_row.string.graphemes(true).collect::<Vec<&str>>();
@@ -652,6 +687,7 @@ pub mod commands {
     }
 
     pub fn to_prev_word_end (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         loop {
             if to_prev_word_end_line(fsm, editor, action_count) > -1 {
                 return;
@@ -677,6 +713,7 @@ pub mod commands {
     }
 
     fn to_prev_word_end_line (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 { // well, technically it's more than just word end
+        if action_count == 0 { return -1_i32; }
         if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
         {
             let mut graphemes = curr_row.string.graphemes(true).rev().collect::<Vec<&str>>();
@@ -758,6 +795,7 @@ pub mod commands {
     }
 
     pub fn to_next_word_end (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
         loop {
             if to_next_word_end_line(fsm, editor, action_count) > -1 {
                 return;
@@ -772,6 +810,7 @@ pub mod commands {
     }
 
     fn to_next_word_end_line (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 { // well, technically it's more than just word end
+        if action_count == 0 { return -1_i32; }
         if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
         {
             let mut graphemes = curr_row.string.graphemes(true).collect::<Vec<&str>>();
@@ -826,6 +865,74 @@ pub mod commands {
             if next_match_idx <= index as i32 {
                 return next_match_idx;
             }
+
+            editor.cursor_position.x = next_match_idx as u16;
+            editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+            return next_match_idx;
+        }
+
+        -1
+    }
+
+    pub fn to_first_line_graph (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 {
+        if action_count == 0 { return -1_i32; }
+        if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
+        {
+            let mut graphemes = curr_row.string.graphemes(true).collect::<Vec<&str>>();
+            let mut next_match_idx: i32 = -1;
+            let mut x = 0;
+
+            if curr_row.string.is_empty() { return -1; }
+
+            next_match_idx = loop {
+                if let Some(grapheme) = graphemes.get(x as usize) {
+                    match (*grapheme).chars().next() {
+                        Some(c) => {
+                            if c.is_ascii_graphic() { break x as i32; }
+                        },
+                        _ => { return next_match_idx; }
+                    }
+                }
+
+                x += 1;
+                if (x as usize) >= graphemes.len() { break -1_i32; }
+            };
+
+            if next_match_idx < 0_i32 { return next_match_idx; }
+
+            editor.cursor_position.x = next_match_idx as u16;
+            editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+            return next_match_idx;
+        }
+
+        -1
+    }
+
+    pub fn to_last_line_graph (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 {
+        if action_count == 0 { return -1_i32; }
+        if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
+        {
+            let mut graphemes = curr_row.string.graphemes(true).rev().collect::<Vec<&str>>();
+            let mut next_match_idx: i32 = -1;
+            let mut x = 0;
+
+            if curr_row.string.is_empty() { return -1; }
+
+            next_match_idx = loop {
+                if let Some(grapheme) = graphemes.get(x as usize) {
+                    match (*grapheme).chars().next() {
+                        Some(c) => {
+                            if c.is_ascii_graphic() { break graphemes.len().saturating_sub(1).saturating_sub(x as usize) as i32; }
+                        },
+                        _ => { return next_match_idx; }
+                    }
+                }
+
+                x += 1;
+                if (x as usize) >= graphemes.len() { break -1_i32; }
+            };
+
+            if next_match_idx < 0_i32 { return next_match_idx; }
 
             editor.cursor_position.x = next_match_idx as u16;
             editor.movement_data.last_nav_position.x = editor.cursor_position.x;

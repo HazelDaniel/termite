@@ -10,13 +10,15 @@ use unicode_segmentation::UnicodeSegmentation;
 use std::rc::{Rc};
 use std::sync::{Arc, Mutex, MutexGuard};
 use once_cell::sync::OnceCell;
-use crate::automata::EditorFSM;
+use crate::automata::{EditorFSM, EditorState};
 use crate::config::{DEFAULT_QUIT_TIMES, EDITOR_NAME, PACKAGE_VERSION};
 use crate::document::Document;
 use crate::log;
 use crate::row::Row;
 use crate::terminal::Terminal;
-use crate::utils::{die, HighlightingOptions, MovementData, Position, Size, StatusMessage, TerminalMode, ScrollDirection, Selection, Promptable};
+use crate::utils::{die, HighlightingOptions, MovementData, Position, Size,
+                   StatusMessage, TerminalMode, ScrollDirection, Selection,
+                   Promptable};
 
 pub struct Editor {
     pub should_quit:                bool,
