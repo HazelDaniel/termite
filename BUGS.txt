@@ -4,13 +4,13 @@
 	fixes:
 		- if there is no more work to be done, break out of the loop to improve perf
 
-(BUG):
+(BUG)[fixed 99%]:
 	> the 'e' command skips lines with single graph characters
 
 	fixes:
 		-  handle edge case in the command handler and test
 
-(BUG):
+(BUG)[fixed 99%]:
 	> the 'b' command skips lines with single graph characters
 
 	fixes:

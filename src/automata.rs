@@ -34,6 +34,8 @@ pub struct EditorFSM {
     pub nav_object_count:   usize,
 }
 
+impl Promptable for EditorFSM { }
+
 impl EditorFSM {
     pub fn new() -> Self {
         EditorFSM {
@@ -44,6 +46,7 @@ impl EditorFSM {
             nav_object_count: 0,
         }
     }
+
     pub fn success_log(&mut self) { log!("done executing: {}", self.command_buffer); }
 
     pub fn success_exit(&mut self) {
@@ -373,14 +376,12 @@ impl EditorFSM {
     }
 }
 
-impl Promptable for EditorFSM { }
-
-
 pub mod commands {
     use std::collections::HashMap;
     use crate::editor::Editor;
     use crate::EditorFSM;
-    use crate::utils::{find_char_position, find_string_position, get_isolated_v_char_class, get_isolated_v_str_class, get_v_char_class, is_word, ScrollDirection, VCharacterClass};
+    use crate::utils::{find_char_position, find_string_position, get_isolated_v_char_class, get_isolated_v_str_class, get_v_char_class,
+                       is_word, ScrollDirection, VCharacterClass};
     use unicode_segmentation::UnicodeSegmentation;
     use crate::log;
 
@@ -815,15 +816,25 @@ pub mod commands {
     pub fn to_next_word_end (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
         if action_count == 0 { return; }
         loop {
-            if to_next_word_end_line(fsm, editor, action_count) > -1 {
-                return;
-            } else {
-                if editor.cursor_position.y.saturating_add(1) < editor.document.rows.len() as u16 {
-                    editor.cursor_position.y = editor.cursor_position.y.saturating_add(1);
-                    editor.cursor_position.x = 0;
-                    editor.movement_data.last_nav_position.x = editor.cursor_position.x;
-                } else {return};
+            if to_next_word_end_line(fsm, editor, action_count) > -1 { return; }
+            if editor.cursor_position.y.saturating_add(1) < editor.document.rows.len() as u16 {
+                editor.cursor_position.y = editor.cursor_position.y.saturating_add(1);
+                editor.cursor_position.x = 0;
+                editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+            } else {return};
+
+            if let Some(row) = editor.document.rows.get(editor.cursor_position.y as usize) {
+                if row.string.is_empty() {continue;}
+                let graphemes = row.string.graphemes(true).collect::<Vec<&str>>();
+                if let Some(c) = graphemes.get(editor.cursor_position.x as usize) {
+                    let next = (*c).chars().next();
+                    if row.len == 1 && next.unwrap_or(' ').is_ascii_graphic() { return; }
+                    if editor.cursor_position.x as usize == 0 && !(next.unwrap_or(' ').is_whitespace()) {
+                        if get_isolated_v_str_class(graphemes.get(editor.cursor_position.x.saturating_add(1) as usize).unwrap_or(c)) != get_isolated_v_str_class(c) { return; }
+                    }
+                } else { return; }
             }
+
         }
     }
 
@@ -837,7 +848,6 @@ pub mod commands {
             let mut flags = (false/*graph start*/, false/*blank start*/);
             let mut search_flags = (false/*graph -> blank*/, false/*blank -> graph*/);
             let mut x = index;
-            let mut class_hash: HashMap<String, i32> = HashMap::new();
 
             if curr_row.string.is_empty() { return -1; }
 
@@ -911,10 +921,9 @@ pub mod commands {
                         let graphemes = row.string.graphemes(true).collect::<Vec<&str>>();
                         if let Some(c) = graphemes.get(editor.cursor_position.x as usize) {
                             let next = (*c).chars().next();
+                            if row.len == 1 && next.unwrap_or(' ').is_ascii_graphic() { return; }
                             if editor.cursor_position.x as usize == graphemes.len().saturating_sub(1) && !(next.unwrap_or(' ').is_whitespace()) {
-                                if get_isolated_v_str_class(graphemes.get(editor.cursor_position.x.saturating_sub(1) as usize).unwrap_or(c)) != get_isolated_v_str_class(c) {
-                                    return;
-                                }
+                                if get_isolated_v_str_class(graphemes.get(editor.cursor_position.x.saturating_sub(1) as usize).unwrap_or(c)) != get_isolated_v_str_class(c) { return; }
                             }
                         } else { return; }
                     }
@@ -935,21 +944,17 @@ pub mod commands {
             let mut x = index;
             let mut class_hash: HashMap<String, i32> = HashMap::new();
 
-            if editor.cursor_position.x == 0 { return -1;}
-
+            if editor.cursor_position.x == 0 { return -1; }
             next_match_idx = loop {
                 if let Some(grapheme) = graphemes.get(graphemes.len().saturating_sub(1).saturating_sub(x as usize)) {
                     let at_start = x == editor.cursor_position.x;
                     match (*grapheme).chars().next() {
                         Some(c) => {
+
                             if c.is_ascii_graphic()  {
                                 if let Some(n) = graphemes.get(graphemes.len().saturating_sub(1).saturating_sub(x.saturating_sub(1) as usize)) {
-                                    if get_isolated_v_char_class(c) != get_isolated_v_char_class(n.chars().next().unwrap_or(c)) {
-                                        if  x != editor.cursor_position.x {
-                                            break x as i32;
-                                        } else if x == graphemes.len().saturating_sub(1) as u16 {
-                                            log!("at boundary {c} with next being '{n}'");
-                                        }
+                                    if get_isolated_v_char_class(c) != get_isolated_v_char_class(n.chars().next().unwrap_or(c)) && x != editor.cursor_position.x {
+                                        break x as i32;
                                     }
                                 }
                             }

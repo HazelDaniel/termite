@@ -192,7 +192,7 @@
 
 [//]: # ( merged - `E` with `e` - )
 
-- `b` - jump backwards to the start of a word
+- `b` - jump backwards to the start of a word ------<Done>
 
 [//]: # ( merged - `B` with `b` - )
 
@@ -200,7 +200,6 @@
 
 [//]: # ( merged - `gE` with `ge` - )
 
-- `%` - move cursor to matching character (default supported pairs: '()', '{}', '[]' - use `:h matchpairs` in vim for more info)
 - `0` - jump to the start of the line ------<Done>
 - `^` - jump to the first non-blank character of the line ------<Done>
 - `$` - jump to the end of the line ------<Done>
@@ -208,6 +207,7 @@
 - `gg` - go to the first line of the document ------<Done>
 - `G` - go to the last line of the document ------<Done>
 - `5gg` or `5G` - go to line 5 ------<Done>
+- `%` - move cursor to matching character (default supported pairs: '()', '{}', '[]' - use `:h matchpairs` in vim for more info)
 
 - `gd` - move to local declaration
 - `gD` - move to global declaration
