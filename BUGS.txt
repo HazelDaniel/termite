@@ -8,4 +8,10 @@
 	> the 'e' command skips lines with single graph characters
 
 	fixes:
-		-  handle edge case in the command handler
+		-  handle edge case in the command handler and test
+
+(BUG):
+	> the 'b' command skips lines with single graph characters
+
+	fixes:
+		-  handle edge case in the command handler and test

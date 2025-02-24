@@ -362,6 +362,14 @@ pub fn get_isolated_v_char_class(c: char) -> VCharacterClass {
     }
 }
 
+pub fn get_isolated_v_str_class(c: &str) -> VCharacterClass {
+    match get_v_char_class(c.chars().next().expect("could not get isolated string's character class!")) {
+        VCharacterClass::Word => VCharacterClass::Word,
+        VCharacterClass::Blank => VCharacterClass::Blank,
+        _ => VCharacterClass::Others
+    }
+}
+
 pub fn find_string_position(texts: &Vec<&str>, condition: impl Fn(&str) -> bool) -> Option<usize> {
     texts.iter().enumerate().find(|(i, & c)| condition(c)).map(|(i, _)| i)
 }

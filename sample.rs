@@ -1,6 +1,6 @@
 use unicode_segmentation:: UnicodeSegmentation;
 use crate::highlighting::Type;
-use crate::utils::{find_grapheme_index,  HighlightingOptions, Position};
+use crate::utils::{find_grapheme_index,,  HighlightingOptions, Position};
 
 /* multiline
 /*

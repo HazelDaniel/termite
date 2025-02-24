@@ -57,7 +57,8 @@ impl EditorFSM {
     pub fn run(&mut self, base_key: &char, editor: &mut Editor) {
         use self::commands::{move_right, move_down, move_left, move_up, to_last_line,
                              to_line_start, to_top_screen, to_bottom_screen, to_mid_screen, to_line_end,
-                             to_next_word_end, to_next_word_start, to_prev_word_end, to_first_line_graph, to_last_line_graph};
+                             to_next_word_end, to_next_word_start, to_prev_word_end, to_first_line_graph, to_last_line_graph,
+                             to_prev_word_start};
 
         // STATE MACHINE FOR INPUT HANDLING
         match *base_key {
@@ -81,6 +82,10 @@ impl EditorFSM {
                 to_next_word_end(self, editor,  1);
                 return;
             },
+            'b' => {
+                to_prev_word_start(self, editor,  1);
+                return;
+            }
             'k' => {
                 move_up(self, editor, 1);
                 return;
@@ -205,7 +210,7 @@ impl EditorFSM {
                 Key::Char('e') => {
                     if fsm.state == EditorState::Normal {
                         for _ in 0..max(fsm.command_count, 1) {
-                            to_next_word_end(fsm, editor, fsm.command_count);
+                            to_next_word_end(fsm, editor, 1);
                         }
                         fsm.command_buffer.push('e');
                         fsm.success_exit();
@@ -213,7 +218,7 @@ impl EditorFSM {
                         return PromptCallbackCode::Success;
                     } else if fsm.state == EditorState::G {
                         for _ in 0..max(fsm.command_count, 1) {
-                            to_prev_word_end(fsm, editor, fsm.command_count);
+                            to_prev_word_end(fsm, editor, 1);
                         }
                         fsm.command_buffer.push('e');
                         fsm.success_exit();
@@ -221,7 +226,20 @@ impl EditorFSM {
                         return PromptCallbackCode::Success;
                     }
                     return PromptCallbackCode::Continue;
-                }
+                },
+
+                Key::Char('b') => {
+                    if fsm.state == EditorState::Normal {
+                        for _ in 0..max(fsm.command_count, 1) {
+                            to_prev_word_start(fsm, editor, 1);
+                        }
+                        fsm.command_buffer.push('b');
+                        fsm.success_exit();
+
+                        return PromptCallbackCode::Success;
+                    }
+                    return PromptCallbackCode::Continue;
+                },
                 Key::Char('G') => {
                     if fsm.state == EditorState::Normal {
                         v_jump_to_line(editor, fsm, &'G');
@@ -362,7 +380,7 @@ pub mod commands {
     use std::collections::HashMap;
     use crate::editor::Editor;
     use crate::EditorFSM;
-    use crate::utils::{find_char_position, find_string_position, get_isolated_v_char_class, get_v_char_class, is_word, ScrollDirection, VCharacterClass};
+    use crate::utils::{find_char_position, find_string_position, get_isolated_v_char_class, get_isolated_v_str_class, get_v_char_class, is_word, ScrollDirection, VCharacterClass};
     use unicode_segmentation::UnicodeSegmentation;
     use crate::log;
 
@@ -863,6 +881,100 @@ pub mod commands {
             };
 
             if next_match_idx <= index as i32 {
+                return next_match_idx;
+            }
+
+            editor.cursor_position.x = next_match_idx as u16;
+            editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+            return next_match_idx;
+        }
+
+        -1
+    }
+
+    pub fn to_prev_word_start (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) {
+        if action_count == 0 { return; }
+        loop {
+            if to_prev_word_start_line (fsm, editor, action_count) > -1 {
+                return;
+            } else {
+                if editor.cursor_position.y == 0 { return; }
+
+                if let Some(prev_row) = editor.document.rows.get(editor.cursor_position.y.saturating_sub(1) as usize) {
+                    editor.cursor_position.y = editor.cursor_position.y.saturating_sub(1);
+                    editor.cursor_position.x = prev_row.len.saturating_sub(1) as u16;
+                    editor.movement_data.last_nav_position.x = editor.cursor_position.x;
+                } else { return; };
+
+                if editor.cursor_position.y.saturating_sub(1) > 0 as u16 {
+                    if let Some(row) = editor.document.rows.get(editor.cursor_position.y as usize) {
+                        let graphemes = row.string.graphemes(true).collect::<Vec<&str>>();
+                        if let Some(c) = graphemes.get(editor.cursor_position.x as usize) {
+                            let next = (*c).chars().next();
+                            if editor.cursor_position.x as usize == graphemes.len().saturating_sub(1) && !(next.unwrap_or(' ').is_whitespace()) {
+                                if get_isolated_v_str_class(graphemes.get(editor.cursor_position.x.saturating_sub(1) as usize).unwrap_or(c)) != get_isolated_v_str_class(c) {
+                                    return;
+                                }
+                            }
+                        } else { return; }
+                    }
+
+                } else { return; }
+
+            }
+        }
+    }
+
+    fn to_prev_word_start_line (fsm: &mut EditorFSM, editor: &mut Editor, action_count: usize) -> i32 {
+        if action_count == 0 { return -1_i32; }
+        if let Some(curr_row) = editor.document.rows.get(editor.cursor_position.y as usize)
+        {
+            let mut graphemes = curr_row.string.graphemes(true).rev().collect::<Vec<&str>>();
+            let mut next_match_idx: i32 = -1;
+            let mut index = editor.cursor_position.x;
+            let mut x = index;
+            let mut class_hash: HashMap<String, i32> = HashMap::new();
+
+            if editor.cursor_position.x == 0 { return -1;}
+
+            next_match_idx = loop {
+                if let Some(grapheme) = graphemes.get(graphemes.len().saturating_sub(1).saturating_sub(x as usize)) {
+                    let at_start = x == editor.cursor_position.x;
+                    match (*grapheme).chars().next() {
+                        Some(c) => {
+                            if c.is_ascii_graphic()  {
+                                if let Some(n) = graphemes.get(graphemes.len().saturating_sub(1).saturating_sub(x.saturating_sub(1) as usize)) {
+                                    if get_isolated_v_char_class(c) != get_isolated_v_char_class(n.chars().next().unwrap_or(c)) {
+                                        if  x != editor.cursor_position.x {
+                                            break x as i32;
+                                        } else if x == graphemes.len().saturating_sub(1) as u16 {
+                                            log!("at boundary {c} with next being '{n}'");
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        _ => { return next_match_idx; }
+                    }
+                }
+
+                x = x.saturating_sub(1);
+
+                if (x as usize) <= 0 {
+                    match(graphemes.get(graphemes.len().saturating_sub(1).saturating_sub(x as usize))) {
+                        Some(c) => {
+                            if (*c).chars().next().unwrap_or(' ').is_ascii_graphic() {
+                                break x as i32;
+                            }
+                        },
+                        _ => {break -1_i32;}
+                    }
+
+                    break -1_i32;
+                }
+            };
+
+            if next_match_idx < 0_i32 {
                 return next_match_idx;
             }
 
