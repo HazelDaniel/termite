@@ -1,5 +1,6 @@
+use std::cmp::max;
 use std::error::Error;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use unicode_segmentation::UnicodeSegmentation;
 use std::time::Instant;
 use std::fs::OpenOptions;
@@ -8,9 +9,11 @@ use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
 use std::io;
 use std::io::{stdin, ErrorKind, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use chrono::format::Item::{Error as ChronoError};
 use tokio::task::JoinHandle;
 use once_cell::sync::OnceCell;
+use rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSlice};
 use termion::event::Key;
 use crate::automata::EditorFSM;
 use crate::editor::Editor;
@@ -342,6 +345,117 @@ pub fn is_word(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+pub fn is_even(s: usize) -> bool {
+    s as i64 & (-1_i64 * s as i64) != 1
+}
+
+pub fn is_brace(c: char) -> bool {
+    c == '[' || c == ']' || c == '{' || c == '}' || c == '(' || c == ')'
+}
+
+pub fn is_opening_brace(c: char) -> bool {
+    c == '[' || c == '{' || c == '('
+}
+
+pub fn is_closing_brace(c: char) -> bool {
+    c == ']' || c == '}' || c == ')'
+}
+
+pub fn get_matching_enclosable(c: char) -> Option<char> {
+    let brace_hash: HashMap<char, char> = HashMap::from([['[', ']'], ['{', '}'], ['(', ')'], [']', '['], ['}', '{'], [')', '(']]);
+
+    if let Some(c) = brace_hash.get(&c) {
+        Some(*c)
+    } else {
+        None
+    }
+}
+
+fn parallel_find_first(s: &str, target: char, grapheme_mode: bool) -> Option<usize> {
+    let found_index = AtomicUsize::new(usize::MAX); // Store the earliest index found
+    let chunk_size = max(s.len() >> 10, 1); // LEN/1024
+
+    if grapheme_mode {
+        s.graphemes(true).as_str().as_bytes()
+            .par_chunks(chunk_size)
+            .enumerate()
+            .try_for_each(|(chunk_idx, chunk)| {
+                if found_index.load(Ordering::Acquire) != usize::MAX {
+                    return Err(());
+                }
+
+                if let Some(local_idx) = chunk.iter().position(|&c| c == target as u8) {
+                    let global_idx = chunk_idx * chunk_size + local_idx;
+                    found_index.fetch_min(global_idx, Ordering::Relaxed);
+                    return Err(());
+                }
+
+                Ok(())
+            })
+            .ok();
+    } else {
+        s.as_bytes()
+            .par_chunks(chunk_size)
+            .enumerate()
+            .try_for_each(|(chunk_idx, chunk)| {
+                if found_index.load(Ordering::Acquire) != usize::MAX {
+                    return Err(());
+                }
+
+                if let Some(local_idx) = chunk.iter().position(|&c| c == target as u8) {
+                    let global_idx = chunk_idx * chunk_size + local_idx;
+                    found_index.fetch_min(global_idx, Ordering::Relaxed);
+                    return Err(());
+                }
+
+                Ok(())
+            })
+            .ok();
+    }
+
+    let result = found_index.load(Ordering::Acquire);
+    if result == usize::MAX {
+        None
+    } else {
+        Some(result)
+    }
+}
+
+fn par_find_first(s: &str, target: char, grapheme_mode: bool) -> Option<usize> {
+    let found_index = AtomicUsize::new(usize::MAX);
+    let chunk_size = max(s.len() >> 10, 1); // LEN/1024
+
+    if grapheme_mode {
+        s.graphemes(true).as_str().as_bytes().par_chunks(chunk_size)
+            .enumerate()
+            .for_each(|(chunk_idx, chunk)| {
+                if found_index.load(Ordering::Relaxed) != usize::MAX { return; }
+                if let Some(local_idx) = chunk.iter().position(|&c| c == target as u8) {
+                    let global_idx = chunk_idx * chunk_size + local_idx;
+                    found_index.fetch_min(global_idx, Ordering::Relaxed);
+                }
+            });
+    } else {
+        s.as_bytes().par_chunks(chunk_size)
+            .enumerate()
+            .for_each(|(chunk_idx, chunk)| {
+                if found_index.load(Ordering::Relaxed) != usize::MAX { return; }
+                if let Some(local_idx) = chunk.iter().position(|&c| c == target as u8) {
+                    let global_idx = chunk_idx * chunk_size + local_idx;
+                    found_index.fetch_min(global_idx, Ordering::Relaxed);
+                }
+            });
+    }
+
+
+    let result = found_index.load(Ordering::Relaxed);
+    if result == usize::MAX {
+        None
+    } else {
+        Some(result)
+    }
+}
+
 pub fn get_v_char_class(c: char) -> VCharacterClass {
     if is_word(c) {
         return VCharacterClass::Word;
@@ -393,4 +507,22 @@ pub fn v_jump_to_line(editor: &mut Editor, fsm: &mut EditorFSM, final_key: &char
     }
 
     fsm.command_buffer.push(*final_key);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    pub fn run_parallelize_chunk_search() {
+        let mut test = "this is great view...............".repeat(10_000_000);
+        test.push('b');
+        test.push_str(&"this is great view...............".repeat(10_000_000));
+        let target = 'b';
+
+        if let Some(index) = par_find_first(&test, target, false) {
+            println!("index found at {}", index);
+        } else {
+            println!("char not found!");
+        }
+    }
 }

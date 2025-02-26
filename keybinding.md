@@ -1,4 +1,6 @@
+                {
 # Vim Keybinding Reference Guide
+}
 
 ## 1. Basic Movement Commands
 (Accept single numeric prefix to repeat action)
@@ -239,14 +241,19 @@
 - `A` - insert (append) at the end of the line
 - `o` - append (open) a new line below the current line
 - `O` - append (open) a new line above the current line
-- `ea` - insert (append) at the end of the word
-- `Ctrl` + `h` - delete the character before the cursor during insert mode
-- `Ctrl` + `w` - delete word before the cursor during insert mode
-- `Ctrl` + `j` - add a line break at the cursor position during insert mode
-- `Ctrl` + `t` - indent (move right) line one shiftwidth during insert mode
-- `Ctrl` + `d` - de-indent (move left) line one shiftwidth during insert mode
-- `Ctrl` + `n` - insert (auto-complete) next match before the cursor during insert mode
-- `Ctrl` + `p` - insert (auto-complete) previous match before the cursor during insert mode
+
+[//]: # (- `Ctrl` + `h` - delete the character before the cursor during insert mode)
+[//]: # (- `Ctrl` + `w` - delete word before the cursor during insert mode)
+
+[//]: # (- `Ctrl` + `j` - add a line break at the cursor position during insert mode)
+
+[//]: # (- `Ctrl` + `t` - indent &#40;move right&#41; line one shiftwidth during insert mode)
+
+[//]: # (- `Ctrl` + `d` - de-indent &#40;move left&#41; line one shiftwidth during insert mode)
+
+[//]: # (- `Ctrl` + `n` - insert &#40;auto-complete&#41; next match before the cursor during insert mode)
+
+[//]: # (- `Ctrl` + `p` - insert &#40;auto-complete&#41; previous match before the cursor during insert mode)
 - `Ctrl` + `rx` - insert the contents of register x
 - `Ctrl` + `ox` - Temporarily enter normal mode to issue one normal-mode command x.
 - `Esc` or `Ctrl` + `c` - exit insert mode
@@ -272,4 +279,4 @@
 - `U` - restore (undo) last changed line
 - `Ctrl` + `r` - redo
 - `.` - repeat last command
-
+)
