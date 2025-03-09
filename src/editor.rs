@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::cmp::max;
 use std::future::Future;
 use std::io;
 use std::io::{stdin, stdout, ErrorKind, Read, Stdout, Write};
@@ -6,19 +7,21 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 use chrono::{Local, Timelike};
-use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::{Graphemes, UnicodeSegmentation};
+use std::iter::{Iterator, Skip};
 use std::rc::{Rc};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
+use rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSlice};
 use once_cell::sync::OnceCell;
+
 use crate::automata::{EditorFSM, EditorState};
 use crate::config::{DEFAULT_QUIT_TIMES, EDITOR_NAME, PACKAGE_VERSION};
 use crate::document::Document;
 use crate::log;
 use crate::row::Row;
 use crate::terminal::Terminal;
-use crate::utils::{die, HighlightingOptions, MovementData, Position, Size,
-                   StatusMessage, TerminalMode, ScrollDirection, Selection,
-                   Promptable};
+use crate::utils::{die, HighlightingOptions, MovementData, Position, Size, StatusMessage, TerminalMode, ScrollDirection, Selection, Promptable, SearchDirection, Coordinate, find_string_position, GraphemeIter};
 
 pub struct Editor {
     pub should_quit:                bool,
@@ -53,6 +56,15 @@ impl Default for Editor {
             selection: None,
             net_height: 0
         }
+    }
+}
+
+impl Promptable for Editor {
+    fn on_prompt_loop_start(&mut self, result: &str) -> Result<(), std::io::Error> {
+        self.draw_message_bar(Some(&result));
+        self.terminal.flush()?;
+
+        Ok(())
     }
 }
 
@@ -365,13 +377,163 @@ impl Editor {
         Ok(())
     }
 
+    pub fn find_char_column(&mut self, position: &Position, direction: SearchDirection, target: &str, in_line: bool) -> Coordinate {
+        if in_line {
+            if let Some(curr_row) = self.document.rows.get(position.y as usize) {
+                // let mut graphemes: GraphemeIter = match direction {
+                //     SearchDirection::Forward => GraphemeIter::Skip(curr_row.string.graphemes(true).skip(position.x.saturating_add(1) as usize)),
+                //     SearchDirection::Backward => GraphemeIter::Take(curr_row.string.graphemes(true).take(position.x as usize)),
+                // };
+                let mut graphemes: Vec<&str> = match direction {
+                    SearchDirection::Forward => curr_row.string.graphemes(true).skip(position.x.saturating_add(1) as usize).collect(),
+                    SearchDirection::Backward => curr_row.string.graphemes(true).take(position.x as usize).collect(),
+                };
+
+                let length = if direction == SearchDirection::Backward {position.x as usize} else {curr_row.string.graphemes(true).count().saturating_sub(position.x.saturating_add(1) as usize)};
+
+                return if direction == SearchDirection::Forward {
+                    let mut new_pos = Coordinate::default();
+                    new_pos.1 = position.y as i64;
+                    if let Some(pos) = find_string_position(graphemes, |c| c == target, false, length) {
+                        new_pos.0 = position.x.saturating_add(1).saturating_add(pos as u16) as i64;
+                    } else {
+                        new_pos.0 = -1_i64;
+                    }
+                    new_pos
+                } else {
+                    let mut new_pos = Coordinate::default();
+                    new_pos.1 = position.y as i64;
+                    if let Some(pos) = find_string_position(graphemes, |c| c == target, true, length) {
+                        new_pos.0 = position.x.saturating_sub(1).saturating_sub(pos as u16) as i64;
+                    } else {
+                        new_pos.0 = -1_i64;
+                    }
+                    new_pos
+                };
+            } else {
+                return Coordinate(-1, -1);
+            }
+        } else {
+            let found_index_y = AtomicUsize::new(usize::MAX);
+            let found_index_x = AtomicUsize::new(usize::MAX);
+
+            let chunk_size = max(self.document.rows.len() >> 10, 1);
+
+            let row_chunks = match direction {
+                SearchDirection::Forward => self.document.rows[position.y.saturating_add(1) as usize..].par_chunks(chunk_size),
+                SearchDirection::Backward => self.document.rows[..position.y as usize].par_chunks(chunk_size),
+            };
+
+            row_chunks
+                .enumerate()
+                .try_for_each(|(chunk_idx, rows)| {
+                    if found_index_y.load(Ordering::Acquire) != usize::MAX { return Err(()); }
+
+                    if let Some(local_position) = rows.iter().position(|r| {
+                        if !r.has_multibyte {
+                            if let Some(idx) = r.string.chars().position(|c| c == target.chars().next().unwrap_or(((c as u8).saturating_sub(1)) as char)) {
+                                found_index_x.fetch_min(idx, Ordering::Relaxed);
+                                return true;
+                            }
+                            return false;
+                        } else {
+                            if let Some(idx) = r.string.graphemes(true).position(|c| {c == target}) {
+                                found_index_x.fetch_min(idx, Ordering::Relaxed);
+                                return true;
+                            }
+                            return false;
+                        }
+
+                    }) {
+                        let global_idx = chunk_idx.saturating_mul(chunk_size).saturating_add(local_position);
+                        found_index_y.fetch_min(global_idx, Ordering::Release);
+                        return Err(());
+                    }
+
+                    Ok(())
+                })
+                .ok();
+
+            let mut res_coordinate = Coordinate(-1, -1);
+
+            let found_y = found_index_y.load(Ordering::Acquire);
+            if found_y != usize::MAX {
+                res_coordinate.1 = found_y.saturating_add(position.y as usize) as i64;
+            }
+
+            let found_x = found_index_x.load(Ordering::Acquire);
+            if found_x != usize::MAX {
+                res_coordinate.0 = found_x as i64;
+            }
+
+            if res_coordinate.0 == -1 || res_coordinate.1 == -1 {
+                Coordinate(-1, -1)
+            } else {
+                res_coordinate
+            }
+        }
+    }
+
 }
 
-impl Promptable for Editor {
-    fn on_prompt_loop_start(&mut self, result: &str) -> Result<(), std::io::Error> {
-        self.draw_message_bar(Some(&result));
-        self.terminal.flush()?;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
 
-        Ok(())
+    #[test]
+    fn test_find_char_column () {
+        let mut editor = Editor::default();
+        let mut lines = vec![];
+
+        for _ in 0..100_000 {
+            lines.push("we are everywhere hidfhsifohosifjo iafajfjosa fhioal fajif ashofis if oasfjasiuf saf shifosaiofj saf ashofiafjoas fshaf soahfoas foahfo ashfosa fsoafhaof saf sahfos afoas jdlfsjfs ioshfo sfshfoi sfsf ");
+        }
+        lines.push(" {");
+        for _ in 0..100_000 {
+            lines.push("we are everywhere hidfhsifohosifjo iafajfjosa fhioal fajif ashofis if oasfjasiuf saf shifosaiofj saf ashofiafjoas fshaf soahfoas foahfo ashfosa fsoafhaof saf sahfos afoas jdlfsjfs ioshfo sfshfoi sfsf ");
+        }
+
+        editor.document.populate(lines);
+        let current_position = Position {x: 0, y: 0};
+
+
+        let now = Instant::now();
+        let res_coordinate = editor.find_char_column(&current_position, SearchDirection::Forward, "{", false);
+
+        let elapsed = now.elapsed().as_millis();
+        println!("elapsed time for parallelized find char {}", elapsed);
+
+        assert_eq!(res_coordinate, Coordinate(1, 99_999));
+
+        // let now = Instant::now();
+        // let res_coordinate = editor.find_char_column_n(&current_position, SearchDirection::Forward, "{", false);
+        // let elapsed = now.elapsed().as_millis();
+        // println!("elapsed time for linear find char {}", elapsed);
+        // assert_eq!(res_coordinate, Coordinate(current_position.x as i64, 100_000));
+    }
+
+    #[test]
+    fn test_find_char_column_inline () {
+        let mut editor = Editor::default();
+        let mut lines = vec![];
+
+        for _ in 0..100_000 {
+            lines.push("we are everywhere ");
+        }
+        lines.push("b");
+        for _ in 0..100_000 {
+            lines.push("we are everywhere ");
+        }
+
+        editor.document.populate(lines);
+        let current_position = Position {x: 0, y: 0};
+
+
+        let res_coordinate = editor.find_char_column(&current_position, SearchDirection::Forward, "v", true);
+
+        assert_eq!(res_coordinate, Coordinate(8, 0));
+
+        let res_coordinate = editor.find_char_column(&current_position, SearchDirection::Forward, "v", false);
     }
 }
